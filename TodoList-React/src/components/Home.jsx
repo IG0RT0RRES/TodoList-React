@@ -1,7 +1,6 @@
-/* eslint-disable no-unused-vars */
-/* eslint-disable react/prop-types */
 import { useState } from "react";
-import "../css/estilo.css"
+import stylesheet from "../css/estilo.module.css";
+
 import Item from "./Item"
 
 function Home(){
@@ -27,11 +26,11 @@ function Home(){
         }
     }
     return (
-    <div className="container">
+    <div className={stylesheet.container}>
         <h1>ToDo List</h1>
-        <input id="input" type="text" placeholder="Digite a tarefa..."/>
-        <button id="btn-add" onClick={AddTarefa}>Adicionar</button>
-        <div id="container-tarefa">
+        <input id="input" className={stylesheet.input} type="text" placeholder="Digite a tarefa..."/>
+        <button className={stylesheet.btn_add} onClick={AddTarefa}>Adicionar</button>
+        <div className={stylesheet.container_tarefa}>
         {
             itens.map((e)=> e)
         }

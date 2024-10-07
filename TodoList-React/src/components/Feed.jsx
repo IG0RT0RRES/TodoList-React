@@ -1,9 +1,8 @@
-//import  reactLogo from "../assets/react.svg"
-import "../css/estilo.css"
+import stylesheet from "../css/estilo.modules.css";
 
 function Feed(){
     return (
-    <div className="container-Logo">
+    <div className={stylesheet.container_logo}>
     </div>)
 }
 

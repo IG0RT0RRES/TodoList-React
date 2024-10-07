@@ -1,6 +1,5 @@
-/* eslint-disable no-unused-vars */
 /* eslint-disable react/prop-types */
-// eslint-disable-next-line no-unused-vars
+import stylesheet from "../css/estilo.module.css";
 
 import { useState } from "react";
 
@@ -29,10 +28,10 @@ function Item({id,tarefa,isDone}){
     }
 
     return (
-    <div key={id} id={id} className={"item"}>
+    <div key={id} id={id} className={stylesheet.item}>
         <img src={iconCheck} onClick={OnClickItem}/>
         <h2 style={{ textDecoration:decoration, opacity: opacItem}} onClick={OnClickItem} >{tarefa}</h2>
-        <button id="btn-delete" onClick={()=> DeleteTarefa(id)} >Deletar</button>
+        <button className={stylesheet.btn_delete} onClick={()=> DeleteTarefa(id)} >Deletar</button>
     </div>)
 }
 
