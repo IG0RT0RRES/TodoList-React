@@ -1,9 +1,9 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react/prop-types */
-import stylesheet from "../css/estilo.module.css";
-
+import stylesheet from "../css/home.module.css";
 import { useState } from "react";
 
-function Item({id,tarefa,isDone}){
+function Item({id,tarefa,isDone, onremoved}){
 
     const srcs = ["/src/img/check-in.png","/src/img/check-out.png"];
     const deco = ["line-through","none"];
@@ -31,12 +31,8 @@ function Item({id,tarefa,isDone}){
     <div key={id} id={id} className={stylesheet.item}>
         <img src={iconCheck} onClick={OnClickItem}/>
         <h2 style={{ textDecoration:decoration, opacity: opacItem}} onClick={OnClickItem} >{tarefa}</h2>
-        <button className={stylesheet.btn_delete} onClick={()=> DeleteTarefa(id)} >Deletar</button>
+        <button className={stylesheet.btn_delete} onClick={()=> onremoved(id)}>Deletar</button>
     </div>)
-}
-
-function DeleteTarefa(id){
-    document.getElementById(id).remove();
 }
 
 export default Item

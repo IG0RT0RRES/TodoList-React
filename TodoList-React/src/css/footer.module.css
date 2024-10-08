@@ -1,0 +1,11 @@
+.footer_container{
+    width: 100%;
+    bottom: 0px;
+    text-align: center;
+    margin: 0px;
+    margin-top: 100px;
+    height: 100px;
+    border-top: solid 3px rgb(221, 25, 25);
+    color: white;
+    background-image:  linear-gradient(180deg,#686666,#272626cc, black);
+}
