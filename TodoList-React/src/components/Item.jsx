@@ -5,7 +5,10 @@ import { useState } from "react";
 
 function Item({id,tarefa,isDone, onremoved}){
 
-    const srcs = ["/src/img/check-in.png","/src/img/check-out.png"];
+    const srcs = [
+        "https://cdn.discordapp.com/attachments/741731794772295805/1293328013550944268/check-in.png?ex=6706f913&is=6705a793&hm=2db601a36db622723327c375829a43450987f053cd956812c3eb8a531b1341c4&",
+        "https://cdn.discordapp.com/attachments/741731794772295805/1293328013320261714/check-out.png?ex=6706f913&is=6705a793&hm=f4fb8a2761c7a67cfcef2695fe0025328c97c719c1d046f257e19d8c7f1ebe88&"
+    ];
     const deco = ["line-through","none"];
     const opac = [0.5,1];
 
