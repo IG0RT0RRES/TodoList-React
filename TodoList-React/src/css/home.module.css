@@ -8,7 +8,6 @@ body{
 }
 
 .container{
-    /* border: solid 2px white; */
     max-width: 80%;
     text-align: center;
     margin-left:  10%;
@@ -37,17 +36,23 @@ body{
     bottom: 0px;
     color: white;
     text-transform: uppercase;
-    background-color: rgb(126, 125, 125);
+    background-color: #f38586;
     text-align: center;
     padding-top: 17px;
     padding-bottom: 17px;
+    padding-left: 10px;
+    padding-right: 10px;
     margin: 0px;
     border-top-right-radius: 5px;
     border-bottom-right-radius: 5px;
     border: none;
-    font-family: Verdana, Geneva, Tahoma, sans-serif;
-    font-size: 10px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-weight: bold;
+    font-size: 9px;
+}
 
+.btn_add:hover{
+    background-color: red;
 }
 
 .container_tarefa{
@@ -57,7 +62,6 @@ body{
     margin-top: 10px;
     margin-left: 5%;
     margin-right: 5%;
-    /* border: solid 2px white; */
     text-align: center;
 }
 
@@ -77,19 +81,13 @@ body{
     cursor: pointer;
 }
 
-.item img {
-    width: 30px;
-    margin-left: 10px;
-}
-
 .item h2{
-    flex: 60%;
+    flex: 90%;
     margin: 0px;
     text-overflow: ellipsis;
     padding: 0px;
     padding-right: 5px;
     padding-left: 5px;
-    width: 80%;
     color: rgb(82, 72, 72);
     font-size: 15px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -101,7 +99,7 @@ body{
     bottom: 0px;
     margin: 0px;
     padding: 22px;
-    background-color: red;
+    background-color: #f38586;
     color: white;
     border: none;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -109,8 +107,37 @@ body{
     border-bottom-right-radius: 5px;
 }
 
+.btn_delete:hover{
+    background-color: red;
+}
+
+.hr{
+    margin-top: 30px;
+}
+.btn_deleteall{
+    position: relative;
+    right: 0px;
+    bottom: 0px;
+    margin-bottom: 30px;
+    padding: 15px;
+    background-color: #f38586;
+    color: white;
+    border: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    border-radius: 5px;
+}
+
+
+.btn_deleteall:hover{
+    background-color: red;
+}
+
 .ilustration{
     width: 400px;
     height: 400px;
-    /* border: solid 2px white; */
+}
+
+.item img{
+    height: 30px;
+    margin-left: 10px;
 }

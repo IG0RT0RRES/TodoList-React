@@ -14,23 +14,23 @@ function Item({id,tarefa,isDone, onremoved}){
     const [iconCheck,setIconCheck] = useState(srcs[1]);
     const [opacItem,setOpacItem] = useState(opac[1]);
 
-    function OnClickItem(){
-        if(isDoneItem){            
-            setDecoration(deco[0]);
-            setIconCheck(srcs[0]);
-            setOpacItem(opac[0]);
-        }else{
+    function OnClickItem(){    
+        if(isDoneItem){          
             setDecoration(deco[1]);
             setIconCheck(srcs[1]);
             setOpacItem(opac[1]);
+        }else{
+            setDecoration(deco[0]);
+            setIconCheck(srcs[0]);
+            setOpacItem(opac[0]);
         }
         setIsDoneItem(!isDoneItem);
     }
 
     return (
-    <div key={id} id={id} className={stylesheet.item}>
-        <img src={iconCheck} onClick={OnClickItem}/>
-        <h2 style={{ textDecoration:decoration, opacity: opacItem}} onClick={OnClickItem} >{tarefa}</h2>
+    <div key={id} id={id} className={stylesheet.item} onClick={OnClickItem}>
+        <img src={iconCheck}/>
+        <h2 style={{ textDecoration:decoration, opacity: opacItem, textOverflow:"ellipsis", whiteSpace:"nowrap", overflow:"hidden"}}>{tarefa}</h2>
         <button className={stylesheet.btn_delete} onClick={()=> onremoved(id)}>Deletar</button>
     </div>)
 }

@@ -5,3 +5,8 @@
     /* border: solid 2px white; */
     color: white;
 }
+
+.navbar_container p {
+    text-align: right;
+    color: #ca9126;
+}

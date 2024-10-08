@@ -4,8 +4,94 @@
     text-align: center;
     margin: 0px;
     margin-top: 100px;
-    height: 100px;
     border-top: solid 3px rgb(221, 25, 25);
     color: white;
     background-image:  linear-gradient(180deg,#686666,#272626cc, black);
+}
+
+.icons{
+    margin-left: 10%;
+    margin-right: 10%;
+    text-align: right;
+}
+
+.icons a {
+    text-decoration: none;
+    color: white;
+}
+
+.ico{
+    width: 30px;
+    height: 30px;
+    margin-top: 10px;
+}
+
+.container_ouvidoria{
+    display: flex;
+    flex-flow: nowrap row;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+.ouvidoria{
+    text-decoration: none;
+    color: white;    
+    padding: 5px;
+    margin: 0px;
+}
+
+.ico_ouvidoria{
+    width: 30px;
+    height: 30px;
+    text-align: center;
+}
+
+.container_contato{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.container_contato a{
+    text-decoration: none;
+    color: #ca9126;
+    margin: 10px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.container_contato a:hover{
+    /* font-size: 18px;
+    background-color: #ca9126;
+    margin: 10px;
+    color: white;
+    border: solid 2px white;
+    border-radius: 5px; */
+    /* animation: "contato" 4s linear; */
+    animation-name: contato;
+    animation-duration: 100ms;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+.copyright{
+    margin: 0px;
+    padding: 10px;
+}
+
+@keyframes contato {
+  from 
+    {
+        font-size: 15px;
+    }
+  to 
+    {
+        font-size: 18px;
+        background-color: #ca9126;
+        margin: 10px;
+        color: white;
+        border: solid 2px white;
+        border-radius: 5px;
+    }
 }

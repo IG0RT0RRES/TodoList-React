@@ -6,7 +6,8 @@ function NavBar(){
 
     return (
         <div className={StyleSheet.navbar_container}>
-            <p>Olá eu sou o navbar-container</p>
+            <p>(21) 96544-2847</p>
+            <hr></hr>
         </div>)
 }
 
