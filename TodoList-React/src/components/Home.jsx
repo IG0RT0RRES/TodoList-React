@@ -43,12 +43,16 @@ function Home(){
     }
 
     return (
-    <div>
-        <div className={stylesheet.container}>
+    <>
+        <nav className={stylesheet.nav_bar}>
             <NavBar/>
+        </nav>
+        <header className={stylesheet.container}>    
             <h1>ToDo List</h1>
             <input id="input" className={stylesheet.input} type="text" placeholder="Digite a tarefa..."  onKeyDown={(e)=>{e.keyCode =="13" && AddNewItem()}}/>
             <button className={stylesheet.btn_add} onClick={AddNewItem}>Adicionar</button>
+        </header>
+        <section className={stylesheet.container}>
             <div id="container-tarefa" className={stylesheet.container_tarefa}>
             <ListItens itens={itens} onremoveitem={OnRemoveItem}/>
             {
@@ -68,9 +72,11 @@ function Home(){
             }
             <img style={{color:"white", width:60, height:60, textAlign:"center"} } src={TodoListIco}/>
             </div>
-        </div>
-        <Footer/>
-    </div>)
+        </section>
+        <footer>
+            <Footer/>
+        </footer>
+    </>)
 }
 
 export default Home
