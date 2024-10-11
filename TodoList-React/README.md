@@ -1,6 +1,6 @@
 # React + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+To-do List adicione tarefas para facilitar o gerenciamento de tarefas no dia a dia em projetos.
 
 Currently, two official plugins are available:
 

@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import stylesheet from "../css/home.module.css";
 import TodoListPng from "../img/TodoList-0.png";
 import TodoListIco from "../img/lista-de-controle.png";
@@ -8,16 +8,17 @@ import NavBar from "./NavBar";
 import Footer from "./Footer";
 import ListItens from "./ListItens";
 
-function Home(){
+function Home(){   
     const [countItens,setCountItens] = useState(0);
     const [itens,setItens] = useState([]);
+    let arraycp = [];
 
     function AddNewItem(){
         let element = document.getElementById("input");
         OnCountReset();
         if((element.value !== "") && (element !== null) &&(element !== undefined)){
             let array = itens.map((x)=> x);
-            array.push({"key":countItens,"id":countItens,"tarefa":element.value});
+            array.push({"key":countItens,"id":countItens,"tarefa":element.value,"state":"unDone"});
             element.value = "";
             element.focus();
             setItens(array);
@@ -35,12 +36,102 @@ function Home(){
 
     const OnRemoveItem = (id)=>{    
         let lista = itens.filter(x=> x.id != id);
+        if(itens.length == 1)
+        {
+            localStorage.clear();
+        }
         setItens(lista);
     }
 
+    const OnUseEffectUpdate = (id,state)=>
+    {
+        if(state == "Done")
+        {
+            arraycp = itens.map((e)=>e);
+            let elem = GetElement(id);
+            arraycp.splice(arraycp.indexOf(elem),1);
+            arraycp.push(elem);
+            SetLocalStorage('itens',arraycp);
+            if(arraycp.indexOf(elem) !== itens.indexOf(elem))
+            {
+                OnLoadLocalStorage('itens');
+            }
+
+        }else{
+            SetLocalStorage('itens',itens);
+        }
+    }
+
+    function GetElement(id)
+    {
+        let arraycp = itens.map(x=>x);
+        return arraycp.filter(function(elem) 
+        {
+            return elem.id == id;
+        })[0];
+    }
+
     function OnDeleteAll(){
+        localStorage.clear();
         setItens([]);
     }
+
+    function OnLoadLocalStorage(key){
+        let itensSaved =  GetSavedLocalStorage(key);
+        if((itensSaved !== null) && (itensSaved !== undefined) && (itensSaved.length !== 0))
+        {
+            setItens(itensSaved);
+            setCountItens(itensSaved.length);
+        }//else{
+         //   console.log("Não foi encontrado lista salva no armazenamento local !");
+        //}
+    }
+
+    function GetSavedLocalStorage(key){
+        return JSON.parse(localStorage.getItem(key));
+    }
+
+    function SetLocalStorage(key, unsaved){
+        let itensSaved =  GetSavedLocalStorage(key);
+        if((itensSaved !== null) && (itensSaved !== undefined) && (unsaved.length !== 0) || (itensSaved !== null) && (itensSaved !== undefined) && itensSaved.length > 0 && unsaved.length == 0)
+        {
+            let array = unsaved.map((x)=> x);
+            let newarray = array.filter(function(elem, pos, self) {
+                return self.indexOf(elem) == pos;
+            })
+            for(let i = 0; i < newarray.length; i++){
+                let attr = document.getElementById(newarray[i].id).getAttribute("class");
+                newarray[i].state = attr.split(' ')[1];
+            }
+            localStorage.setItem(key,JSON.stringify(newarray));
+        }
+        else if(itensSaved == null)
+        {
+            for(let i = 0; i < unsaved.length; i++){
+                let attr = document.getElementById(unsaved[i].id).getAttribute("class");
+                unsaved[i].state = attr.split(' ')[1];
+            }
+            localStorage.setItem(key, JSON.stringify(unsaved));
+        }
+        //else
+        //{
+        //    console.log("Não foi possivel salvar os itens localmente !" + itensSaved);
+        //}
+}
+
+    useEffect(()=>
+    {
+        if(itens == null || itens == undefined || itens.length == 0)
+        {
+            OnLoadLocalStorage('itens');
+        }
+
+        let getItens = GetSavedLocalStorage('itens');
+        if((getItens !== undefined && getItens != null && getItens.length < itens.length) || itens.length == 0)
+        {
+            SetLocalStorage('itens',itens);
+        }
+    });
 
     return (
     <>
@@ -54,7 +145,7 @@ function Home(){
         </header>
         <section className={stylesheet.container}>
             <div id="container-tarefa" className={stylesheet.container_tarefa}>
-            <ListItens itens={itens} onremoveitem={OnRemoveItem}/>
+            <ListItens itens={itens} onremoveitem={OnRemoveItem} onuseeffectupdate={OnUseEffectUpdate}/>
             {
                 itens.length == 0 ?
                 (
