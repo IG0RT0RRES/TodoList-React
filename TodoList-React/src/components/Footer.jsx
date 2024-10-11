@@ -21,7 +21,9 @@ function Footer(){
             <p>Atendimento de segunda a sexta-feira, das 6h às 21h</p>
             <div className={styleSheet.container_contato}>
                 <p>Telefones: 
-                    <a href="#">(21)96544-2847</a> / <a href="#">(21)96544-2847</a> / <a href="#">(21)96544-2847</a>
+                    <a href="https://wa.me/+5521965442847?text=Ol%C3%A1,%20peguei%20seu%20contato%20no%20site%20!" target="_blank">(21)96544-2847</a> / 
+                    <a href="https://wa.me/+5521965442847?text=Ol%C3%A1,%20peguei%20seu%20contato%20no%20site%20!" target="_blank">(21)96544-2847</a> / 
+                    <a href="https://wa.me/+5521965442847?text=Ol%C3%A1,%20peguei%20seu%20contato%20no%20site%20!" target="_blank">(21)96544-2847</a>
                 </p>
             </div>
             <p>Avenida Presidente Fulano, 777 - Centro, Rio de Janeiro - RJ | 77.777 - 777</p>
