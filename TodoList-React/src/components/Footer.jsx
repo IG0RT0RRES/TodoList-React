@@ -11,10 +11,10 @@ function Footer(){
     return (
         <div className={styleSheet.footer_container}>
             <div className={styleSheet.icons}>
-                <a href="https://www.facebook.com/" target="_blank"><FaFacebookSquare className={styleSheet.ico} /*style={{color:"#27557a"}}*//></a>
-                <a href="https://www.twitter.com/" target="_blank"><FaSquareXTwitter className={styleSheet.ico} /*style={{color:"#27557a"}}*//></a>
-                <a href="https://www.youtube.com/" target="_blank"><FaSquareYoutube className={styleSheet.ico} /*style={{color:"red"}}*//></a>
-                <a href="https://www.instagram.com/" target="_blank"><FaSquareInstagram className={styleSheet.ico} /*style={{color:"pink"}}*//></a>
+                <a href="https://web.facebook.com/igor.torres.54738" target="_blank"><FaFacebookSquare className={styleSheet.ico} /*style={{color:"#27557a"}}*//></a>
+                <a href="https://x.com/IgorTorres234" target="_blank"><FaSquareXTwitter className={styleSheet.ico} /*style={{color:"#27557a"}}*//></a>
+                <a href="https://www.youtube.com/@Dev.Mobile" target="_blank"><FaSquareYoutube className={styleSheet.ico} /*style={{color:"red"}}*//></a>
+                <a href="https://www.instagram.com/m_igortorres/" target="_blank"><FaSquareInstagram className={styleSheet.ico} /*style={{color:"pink"}}*//></a>
             </div>
             <hr style={{marginLeft:"10%", marginRight:"10%"}}></hr>
             <h2>TODOLIST.BR</h2>
@@ -27,7 +27,7 @@ function Footer(){
             <p>Avenida Presidente Fulano, 777 - Centro, Rio de Janeiro - RJ | 77.777 - 777</p>
             <div className={styleSheet.container_ouvidoria}>
                 <MdEmail className={styleSheet.ico_ouvidoria}/>
-                <a className={styleSheet.ouvidoria} href="#" target="_blank">Ouvidoria</a>            
+                <a className={styleSheet.ouvidoria} href="mailto:igortorres234@gmail.com?subject=Programador Web&cc=&bcc=&body=Olá, estou entrando em contato pelo email disponivel no site TodoList-BR" target="_blank">Enviar Email</a>            
             </div>
             <p className={styleSheet.copyright}>Copyright © APP TODOLIST-BR - PORTAL DO DESENVOLVIMENTO DE APLICAÇOES DO RIO DE JANEIRO - TODOLIST-BR</p>
         </div>)

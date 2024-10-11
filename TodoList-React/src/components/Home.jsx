@@ -11,8 +11,7 @@ import ListItens from "./ListItens";
 function Home(){   
     const [countItens,setCountItens] = useState(0);
     const [itens,setItens] = useState([]);
-    let arraycp = [];
-
+    
     function AddNewItem(){
         let element = document.getElementById("input");
         OnCountReset();
@@ -39,41 +38,43 @@ function Home(){
         if(itens.length == 1)
         {
             localStorage.clear();
+            setCountItens(0);
         }
         setItens(lista);
     }
 
     const OnUseEffectUpdate = (id,state)=>
     {
-        if(state == "Done")
+        if(state)
         {
-            arraycp = itens.map((e)=>e);
-            let elem = GetElement(id);
+            let arraycp = itens.map((e)=>e);
+            let elem = GetElement(id,itens);
             arraycp.splice(arraycp.indexOf(elem),1);
             arraycp.push(elem);
             SetLocalStorage('itens',arraycp);
-            if(arraycp.indexOf(elem) !== itens.indexOf(elem))
-            {
-                OnLoadLocalStorage('itens');
-            }
-
+            OnLoadLocalStorage('itens');
         }else{
             SetLocalStorage('itens',itens);
         }
     }
 
-    function GetElement(id)
-    {
-        let arraycp = itens.map(x=>x);
-        return arraycp.filter(function(elem) 
+    function GetElement(id,array)
+    {   
+        let arraycp = array.map(x=>x);
+        let element = arraycp.filter(function(elem) 
         {
             return elem.id == id;
-        })[0];
+        });
+        if(element !== undefined && element !== null && element.length !== 0){
+            return element[0];
+        }
+        return undefined;
     }
 
     function OnDeleteAll(){
         localStorage.clear();
         setItens([]);
+        setCountItens(0);
     }
 
     function OnLoadLocalStorage(key){
@@ -82,9 +83,7 @@ function Home(){
         {
             setItens(itensSaved);
             setCountItens(itensSaved.length);
-        }//else{
-         //   console.log("Não foi encontrado lista salva no armazenamento local !");
-        //}
+        }
     }
 
     function GetSavedLocalStorage(key){
@@ -113,10 +112,6 @@ function Home(){
             }
             localStorage.setItem(key, JSON.stringify(unsaved));
         }
-        //else
-        //{
-        //    console.log("Não foi possivel salvar os itens localmente !" + itensSaved);
-        //}
 }
 
     useEffect(()=>

@@ -89,6 +89,17 @@ body{
     cursor: pointer;
 }
 
+.container_touch{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0px;
+    flex-wrap: wrap row;
+    flex: 90%;
+    height: 61px;
+    padding: 0px;
+}
+
 .item h2{
     flex: 90%;
     margin: 0px;
@@ -99,6 +110,11 @@ body{
     color: rgb(82, 72, 72);
     font-size: 15px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.item img{
+    height: 30px;
+    margin-left: 10px;
 }
 
 .btn_delete{
@@ -145,7 +161,11 @@ body{
     height: 400px;
 }
 
-.item img{
-    height: 30px;
-    margin-left: 10px;
+@media only screen and(min-width:439px){
+    .btn_add{   
+        border-top-left-radius: 5px;
+        border-top-right-radius: 5px;
+        border-bottom-left-radius: 5px;
+        border-bottom-right-radius: 5px;
+    }
 }
