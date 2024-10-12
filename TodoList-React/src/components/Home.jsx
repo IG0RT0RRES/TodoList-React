@@ -54,6 +54,7 @@ function Home(){
             setCountItens(0);
         }
         setItens(lista);
+        SetLocalStorage('itens',lista);
     }
 
     const OnUseEffectUpdate = (id,state)=>
@@ -125,6 +126,8 @@ function Home(){
                 unsaved[i].state = attr.split(' ')[1];
             }
             localStorage.setItem(key, JSON.stringify(unsaved));
+        } else {
+            localStorage.setItem(key,JSON.stringify(itens));
         }
 }
 
