@@ -9,6 +9,8 @@ import ClickClip from "../audio/isDoneTask.ogg";
 import NavBar from "./NavBar";
 import Footer from "./Footer";
 import ListItens from "./ListItens";
+import Aos from "aos";
+import "aos/dist/aos.css";
 
 function Home(){   
     const [countItens,setCountItens] = useState(0);
@@ -133,6 +135,7 @@ function Home(){
 
     useEffect(()=>
     {
+        Aos.init();
         if(itens == null || itens == undefined || itens.length == 0)
         {
             OnLoadLocalStorage('itens');
