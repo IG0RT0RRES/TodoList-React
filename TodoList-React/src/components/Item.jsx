@@ -23,9 +23,22 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
         PlayAudio(Ogg);
         setItem({"id":id,"state":!item.state,"style":{"textDecoration":itemProperties.style.textDecoration[!item.state? 0 : 1],"opacity":itemProperties.style.opacity[!item.state? 0 : 1], textOverflow:"ellipsis", whiteSpace:"nowrap", overflow:"hidden"},"src": itemProperties.src[!item.state? 0 : 1]});        
         let doc = document.getElementById(id);
-        let attr = doc.getAttribute("class").split(' ')[0];
-        attr += item.state? " unDone" : " Done";
-        doc.setAttribute("class",attr);
+        //let attr = doc.getAttribute("class").split(' ')[0];
+        //attr += item.state? " unDone" : " Done";
+        //doc.setAttribute("class",attr);
+        if(item.state)
+        {
+            doc.classList.remove("Done");
+            doc.classList.add("unDone");
+
+            //doc.classList.remove("zoom-in");
+            //setTimeout(()=>{
+            //    doc.classList.add("zoom-in");
+            //},300);
+        }else{
+            doc.classList.remove("unDone");
+            doc.classList.add("Done");
+        }
         onuseeffectupdateitem(item.id,!item.state);
     }
 
@@ -42,7 +55,7 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
     })
 
     return (
-    <div data-aos="zoom-in" key={id} id={id} className={stylesheet.item + (item.state ?" Done":" unDone")}>
+    <div key={id} id={id} className={stylesheet.item + (item.state ?" Done":" unDone")}>
         <div className={stylesheet.container_touch} onClick={OnClickItemNew}>
             <img src={ item.src}/>
             <h2 style={ item.style}>{tarefa}</h2>
