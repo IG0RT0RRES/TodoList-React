@@ -46,7 +46,7 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
     })
 
     return (
-    <div data-aos="flip-up" key={id} id={id} className={stylesheet.item + (item.state ?" Done":" unDone")}>
+    <div key={id} id={id} className={stylesheet.item + (item.state ?" Done":" unDone")}>
         <div className={stylesheet.container_touch} onClick={OnClickItemNew}>
             <img src={ item.src}/>
             <h2 style={ item.style}>{tarefa}</h2>
