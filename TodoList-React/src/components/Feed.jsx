@@ -1,4 +1,4 @@
-import stylesheet from "../css/estilo.modules.css";
+import stylesheet from "../css/feed.modules.css";
 
 function Feed(){
     return (

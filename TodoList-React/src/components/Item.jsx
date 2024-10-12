@@ -2,6 +2,7 @@
 /* eslint-disable react/prop-types */
 import stylesheet from "../css/home.module.css";
 import { useEffect, useState } from "react";
+import Ogg from "../audio/isDoneTask.ogg";
 
 function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
 
@@ -19,6 +20,7 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
     });
 
     function OnClickItemNew(){
+        PlayAudio(Ogg);
         setItem({"id":id,"state":!item.state,"style":{"textDecoration":itemProperties.style.textDecoration[!item.state? 0 : 1],"opacity":itemProperties.style.opacity[!item.state? 0 : 1], textOverflow:"ellipsis", whiteSpace:"nowrap", overflow:"hidden"},"src": itemProperties.src[!item.state? 0 : 1]});        
         let doc = document.getElementById(id);
         let attr = doc.getAttribute("class").split(' ')[0];
@@ -27,13 +29,20 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
         onuseeffectupdateitem(item.id,!item.state);
     }
 
+    function PlayAudio(clip){
+        let audioClick = new Audio(clip);
+        audioClick.pause();
+        audioClick.currentTime = 0;
+        audioClick.volume = 0.10;
+        audioClick.play();
+    }
     useEffect(()=>
     {
         
     })
 
     return (
-    <div key={id} id={id} className={stylesheet.item + (item.state ?" Done":" unDone")}>
+    <div data-aos="zoom-in" key={id} id={id} className={stylesheet.item + (item.state ?" Done":" unDone")}>
         <div className={stylesheet.container_touch} onClick={OnClickItemNew}>
             <img src={ item.src}/>
             <h2 style={ item.style}>{tarefa}</h2>

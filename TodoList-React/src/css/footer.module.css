@@ -70,13 +70,6 @@
 }
 
 .container_contato a:hover{
-    /* font-size: 18px;
-    background-color: #ca9126;
-    margin: 10px;
-    color: white;
-    border: solid 2px white;
-    border-radius: 5px; */
-    /* animation: "contato" 4s linear; */
     animation-name: contato;
     animation-duration: 100ms;
     animation-timing-function: linear;

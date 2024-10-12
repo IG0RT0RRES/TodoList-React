@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import stylesheet from "../css/home.module.css";
 import TodoListPng from "../img/TodoList-0.png";
 import TodoListIco from "../img/lista-de-controle.png";
+import DeleteClip from "../audio/delete.wav";
+import ClickClip from "../audio/isDoneTask.ogg";
 
 import NavBar from "./NavBar";
 import Footer from "./Footer";
@@ -16,6 +18,7 @@ function Home(){
         let element = document.getElementById("input");
         OnCountReset();
         if((element.value !== "") && (element !== null) &&(element !== undefined)){
+            PlayAudio(ClickClip);
             let array = itens.map((x)=> x);
             array.push({"key":countItens,"id":countItens,"tarefa":element.value,"state":"unDone"});
             element.value = "";
@@ -32,8 +35,18 @@ function Home(){
             setCountItens(0);
         }   
     }
+    
+    function PlayAudio(clip){
+        let audioClick = new Audio(clip);
+        audioClick.pause();
+        audioClick.currentTime = 0;
+        audioClick.volume = 0.10;
+        audioClick.src = clip;
+        audioClick.play();
+    }
 
     const OnRemoveItem = (id)=>{    
+        PlayAudio(DeleteClip);
         let lista = itens.filter(x=> x.id != id);
         if(itens.length == 1)
         {
@@ -72,6 +85,7 @@ function Home(){
     }
 
     function OnDeleteAll(){
+        PlayAudio(DeleteClip);
         localStorage.clear();
         setItens([]);
         setCountItens(0);
@@ -134,7 +148,7 @@ function Home(){
             <NavBar/>
         </nav>
         <header className={stylesheet.container}>    
-            <h1>ToDo List</h1>
+            <h1 data-aos="fade-left">ToDo List</h1>
             <input id="input" className={stylesheet.input} type="text" placeholder="Digite a tarefa..."  onKeyDown={(e)=>{e.keyCode =="13" && AddNewItem()}}/>
             <button className={stylesheet.btn_add} onClick={AddNewItem}>Adicionar</button>
         </header>
@@ -145,18 +159,18 @@ function Home(){
                 itens.length == 0 ?
                 (
                     <div id="container-ilustration" className={stylesheet.container_ilustration}>
-                        <img className={stylesheet.ilustration} src={TodoListPng} type="img/png" alt="ilustration"/>
+                        <img data-aos="zoom-in-up" className={stylesheet.ilustration} src={TodoListPng} type="img/png" alt="ilustration"/>
                     </div>
                 )
                 :
                 (
                     <div>
-                        <hr className={stylesheet.hr}></hr>
-                        <button className={stylesheet.btn_deleteall} onClick={OnDeleteAll} >Deletar tudo</button>
+                        <hr data-aos="zoom-in-up" className={stylesheet.hr}></hr>
+                        <button data-aos="zoom-in-up" className={stylesheet.btn_deleteall} onClick={OnDeleteAll} >Deletar tudo</button>
                     </div>
                 )
             }
-            <img style={{color:"white", width:60, height:60, textAlign:"center"} } src={TodoListIco}/>
+            <img data-aos="zoom-in-up" style={{color:"white", width:60, height:60, textAlign:"center"} } src={TodoListIco}/>
             </div>
         </section>
         <footer>
