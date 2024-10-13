@@ -1,13 +1,23 @@
+/* eslint-disable react/prop-types */
 /* eslint-disable no-unused-vars */
+import Aos from "aos";
+import "aos/dist/aos.css";
+import styleSheet from "../css/navbar.module.css";
+import { useEffect } from "react";
 
-import StyleSheet from "../css/navbar.module.css";
+function NavBar({contact}){
 
-function NavBar(){
+    useEffect(()=>{
+        Aos.init();
+    },[]);
+
     return (
-        <div className={StyleSheet.navbar_container}>
-            <p>(21) 96544-2847</p>
-            <hr></hr>
-        </div>)
+        <nav data-aos="fade-down" className={styleSheet.nav_bar}>
+            <div className={styleSheet.navbar_container}>
+                <p>{contact}</p>
+                <hr></hr>
+            </div>
+        </nav>)
 }
 
 export default NavBar

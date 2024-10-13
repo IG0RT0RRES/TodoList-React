@@ -1,16 +1,26 @@
 /* eslint-disable no-unused-vars */
+
+//React Library
 import { useEffect, useState } from "react";
-import stylesheet from "../css/home.module.css";
-import TodoListPng from "../img/TodoList-0.png";
-import TodoListIco from "../img/lista-de-controle.png";
+//React Library
+
+//Resources local
 import DeleteClip from "../audio/delete.wav";
 import ClickClip from "../audio/isDoneTask.ogg";
+//Resources local
 
-import NavBar from "./NavBar";
-import Footer from "./Footer";
-import ListItens from "./ListItens";
+//Library AOS Scrool animated
 import Aos from "aos";
 import "aos/dist/aos.css";
+//Library AOS Srool animated
+
+//Components
+import Header from "./Header";
+import ContainerList from "./ContainerList";
+import NavBar from "./NavBar";
+import Footer from "./Footer";
+import Layout from "./Layout";
+//Components
 
 function Home(){   
     const [countItens,setCountItens] = useState(0);
@@ -131,7 +141,7 @@ function Home(){
         } else {
             localStorage.setItem(key,JSON.stringify(itens));
         }
-}
+    }
 
     useEffect(()=>
     {
@@ -149,40 +159,16 @@ function Home(){
     });
 
     return (
-    <>
-        <nav className={stylesheet.nav_bar}>
-            <NavBar/>
-        </nav>
-        <header className={stylesheet.container}>    
-            <h1 data-aos="fade-left">ToDo List</h1>
-            <input id="input" className={stylesheet.input} type="text" placeholder="Digite a tarefa..."  onKeyDown={(e)=>{e.keyCode =="13" && AddNewItem()}}/>
-            <button className={stylesheet.btn_add} onClick={AddNewItem}>Adicionar</button>
-        </header>
-        <section className={stylesheet.container}>
-            <div id="container-tarefa" className={stylesheet.container_tarefa}>
-            <ListItens itens={itens} onremoveitem={OnRemoveItem} onuseeffectupdate={OnUseEffectUpdate}/>
-            {
-                itens.length == 0 ?
-                (
-                    <div id="container-ilustration" className={stylesheet.container_ilustration}>
-                        <img data-aos="zoom-in-up" className={stylesheet.ilustration} src={TodoListPng} type="img/png" alt="ilustration"/>
-                    </div>
-                )
-                :
-                (
-                    <div>
-                        <hr data-aos="zoom-in-up" className={stylesheet.hr}></hr>
-                        <button data-aos="zoom-in-up" className={stylesheet.btn_deleteall} onClick={OnDeleteAll} >Deletar tudo</button>
-                    </div>
-                )
-            }
-            <img data-aos="zoom-in-up" style={{color:"white", width:60, height:60, textAlign:"center"} } src={TodoListIco}/>
-            </div>
-        </section>
-        <footer>
-            <Footer/>
-        </footer>
-    </>)
+        <>
+            <Layout elements=
+            {[
+                <NavBar key={0} contact={"(21) 96544-2847"}/>,
+                <Header key={1} title={"ToDo List"} addnewitem={AddNewItem}/>,
+                <ContainerList key={2} itens={itens} onremoveitem={OnRemoveItem} onuseeffectupdate={OnUseEffectUpdate} ondeleteall={OnDeleteAll}/>,
+                <Footer key={3}/>
+            ]}/>
+        </>
+    )
 }
 
 export default Home

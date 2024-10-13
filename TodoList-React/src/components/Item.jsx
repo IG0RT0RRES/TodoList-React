@@ -43,10 +43,11 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
         audioClick.volume = 0.10;
         audioClick.play();
     }
+
     useEffect(()=>
     {
         Aos.init();
-    })
+    },[]);
 
     return (
     <div data-aos="fade-right" key={id} id={id} className={stylesheet.item + (item.state ?" Done":" unDone")}>

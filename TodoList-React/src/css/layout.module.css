@@ -1,0 +1,11 @@
+
+.layout_container{
+    display: flex;
+    flex: 98%;
+    margin-left: 1%;
+    margin-right: 1%;
+    flex-flow: wrap column;
+    justify-content: center;
+    max-width: 1600px;
+    min-width: 600px;
+}
