@@ -55,6 +55,7 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
             <img src={ item.src}/>
             <h2 style={ item.style}>{tarefa}</h2>
         </div>
+        <img className="item_option" src="/src/img/options.png"/>
         <button className={stylesheet.btn_delete} onClick={()=> onremoved(id)}>Deletar</button>
     </div>)
 }

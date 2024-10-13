@@ -78,10 +78,10 @@ function Home(){
             arraycp.splice(arraycp.indexOf(elem),1);
             arraycp.push(elem);
             SetLocalStorage('itens',arraycp);
-            OnLoadLocalStorage('itens');
         }else{
             SetLocalStorage('itens',itens);
         }
+        OnLoadLocalStorage('itens');
     }
 
     function GetElement(id,array)
@@ -156,7 +156,7 @@ function Home(){
         {
             SetLocalStorage('itens',itens);
         }
-    });
+    },[]);
 
     return (
         <>

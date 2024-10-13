@@ -51,7 +51,7 @@ window.addEventListener('load', ()=>{
 
     GetAPIForFetch('https://viacep.com.br/ws/'+ cep +'/json/',{},(response)=> {
         viewcep_text.innerHTML = response.logradouro +" n° 1777"+ response.unidade + " | " + response.bairro + " | " + response.localidade + " | " + response.uf;
-    }, (error)=>{console.log(error)},()=>{console.log("Finalizado!")});
+    }, (error)=>{console.log(error)},()=>{});
 });
 
 //GetAPIForXMLHttp('https://viacep.com.br/ws/'+ cep +'/json/',(response)=> {

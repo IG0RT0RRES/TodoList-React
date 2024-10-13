@@ -88,13 +88,13 @@ body{
     align-items: center;
     margin: 0px;
     flex-wrap: wrap row;
-    flex: 90%;
+    flex: 80%;
     height: 61px;
     padding: 0px;
 }
 
 .item h2{
-    flex: 90%;
+    flex: 80%;
     margin: 0px;
     text-overflow: ellipsis;
     padding: 0px;

@@ -2,6 +2,7 @@
 /* eslint-disable no-unused-vars */
 import Aos from "aos";
 import "aos/dist/aos.css";
+
 import styleSheet from "../css/navbar.module.css";
 import { useEffect } from "react";
 

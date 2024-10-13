@@ -1,0 +1,18 @@
+.pop_up{
+    position: fixed;
+    text-align: center;
+    right: 30%;
+    top: 30%;
+    z-index: 10;
+    width: 600px;
+    height: 250px;
+    color: black;
+    background-color: white;
+    border-radius: 5px;
+}
+
+.pop_up p {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 35px;
+    margin: 10px;
+}
