@@ -7,6 +7,7 @@ import Aos from "aos";
 import "aos/dist/aos.css";
 import CheckOut from "../img/check-out.png";
 import CheckIn from "../img/check-in.png";
+import Options from "../img/options.png";
 
 function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem,onopenpopupedit}){
 
@@ -57,7 +58,7 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem,onopenpopupedi
             <img src={ item.src} type="image/png"/>
             <h2 style={ item.style}>{tarefa}</h2>
         </div>
-        <img className={stylesheet.item_options} onClick={ () => onopenpopupedit({ "state" :true, "target": {"id": item.id, "tarefa": tarefa}})} src="/src/img/options.png"/>
+        <img className={stylesheet.item_options} onClick={ () => onopenpopupedit({ "state" :true, "target": {"id": item.id, "tarefa": tarefa}})} src={Options}/>
         <button className={stylesheet.btn_delete} onClick={()=> onremoved(id)}>Deletar</button>
     </div>)
 }
