@@ -24,7 +24,7 @@ import Layout from "./Layout";
 import Popup from "./Popup";
 //Components
 
-function Home(){   
+function Home(){
     const [countItens,setCountItens] = useState(0);
     const [itens,setItens] = useState([]);
     const [openPopup,setOpenPopup] = useState({ "state" : false, "target": {"id":0 ,"tarefa":"Elemento Default"}});
@@ -45,12 +45,12 @@ function Home(){
         }
     }
 
-    function OnCountReset(){    
+    function OnCountReset(){
         if(itens.length <= 0){
             setCountItens(0);
-        }   
+        }
     }
-    
+
     function PlayAudio(clip){
         let audioClick = new Audio(clip);
         audioClick.pause();
@@ -60,7 +60,7 @@ function Home(){
         audioClick.play();
     }
 
-    const OnRemoveItem = (id)=>{    
+    const OnRemoveItem = (id)=>{
         PlayAudio(DeleteClip);
         let lista = itens.filter(x=> x.id != id);
         if(itens.length == 1)
@@ -88,9 +88,9 @@ function Home(){
     }
 
     function GetElement(id,array)
-    {   
+    {
         let arraycp = array.map(x=>x);
-        let element = arraycp.filter(function(elem) 
+        let element = arraycp.filter(function(elem)
         {
             return elem.id == id;
         });
@@ -194,7 +194,7 @@ function Home(){
         }
     });
 
-    const elementosPage = 
+    const elementosPage =
     [
         <NavBar key={0} contact={"(21) 96544-2847"}/>,
         <Header key={1} title={"ToDo List"} addnewitem={AddNewItem}/>,

@@ -56,7 +56,7 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem,onopenpopupedi
     <div data-aos="fade-right" key={id} id={id} className={stylesheet.item + (item.state ?" Done":" unDone")}>
         <div className={stylesheet.container_touch} onClick={OnClickItemNew}>
             <img src={ item.src} type="image/png"/>
-            <h2 style={ item.style}>{tarefa}</h2>
+            <h2 style={ item.style} title={tarefa} >{tarefa}</h2>
         </div>
         <img className={stylesheet.item_options} onClick={ () => onopenpopupedit({ "state" :true, "target": {"id": item.id, "tarefa": tarefa}})} src={Options}/>
         <button className={stylesheet.btn_delete} onClick={()=> onremoved(id)}>Deletar</button>
