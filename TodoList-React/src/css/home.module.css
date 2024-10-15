@@ -29,13 +29,14 @@ body{
     border-bottom-left-radius: 5px;
     border: none;
     margin: 0px;
+    outline: none;
 }
 
 .btn_add{
     position: relative;
     right: 0px;
     bottom: 0px;
-    color: white;
+    color: black;
     text-transform: uppercase;
     background-color: #f38586;
     text-align: center;
@@ -48,12 +49,13 @@ body{
     border-bottom-right-radius: 5px;
     border: none;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    font-weight: bold;
+    /* font-weight: bold; */
     font-size: 9px;
 }
 
 .btn_add:hover{
     background-color: red;
+    color: white;
 }
 
 .container_tarefa{
@@ -84,6 +86,8 @@ body{
 
 .item_options{
     opacity: 0.3;
+    height: 30px;
+    margin-left: 10px;
 }
 
 .item_options:hover{
@@ -104,9 +108,8 @@ body{
 
 .container_touch h2{
     text-overflow: ellipsis;
-}
-
-.item h2{
+    text-align: left;
+    /*--------------------------------*/
     flex: 80%;
     margin: 0px;
     text-overflow: ellipsis;
@@ -118,7 +121,7 @@ body{
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.item img{
+.container_touch img {
     height: 30px;
     margin-left: 10px;
 }
@@ -130,7 +133,7 @@ body{
     margin: 0px;
     padding: 22px;
     background-color: #f38586;
-    color: white;
+    color: black;
     border: none;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     border-top-right-radius: 5px;
@@ -139,6 +142,7 @@ body{
 
 .btn_delete:hover{
     background-color: red;
+    color: white;
 }
 
 .hr{
@@ -152,7 +156,7 @@ body{
     margin-bottom: 30px;
     padding: 15px;
     background-color: #f38586;
-    color: white;
+    color: black;
     border: none;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     border-radius: 5px;
@@ -161,6 +165,7 @@ body{
 
 .btn_deleteall:hover{
     background-color: red;
+    color: white;
 }
 
 .ilustration{
@@ -169,10 +174,5 @@ body{
 }
 
 @media only screen and(min-width:439px){
-    .btn_add{   
-        border-top-left-radius: 5px;
-        border-top-right-radius: 5px;
-        border-bottom-left-radius: 5px;
-        border-bottom-right-radius: 5px;
-    }
+
 }
