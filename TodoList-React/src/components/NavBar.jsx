@@ -10,7 +10,7 @@ function NavBar({contact}){
 
     useEffect(()=>{
         Aos.init();
-    },[]);
+    });
 
     return (
         <nav data-aos="fade-down" className={styleSheet.nav_bar}>

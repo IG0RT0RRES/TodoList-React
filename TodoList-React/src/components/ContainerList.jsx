@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react/prop-types */
 import ListItens from "./ListItens";
 import TodoListPng from "../img/TodoList-0.png";
@@ -7,16 +8,16 @@ import Aos from "aos";
 import "aos/dist/aos.css";
 import { useEffect } from "react";
 
-function ContainerList({itens,onremoveitem,onuseeffectupdate,ondeleteall}){
+function ContainerList({itens,onremoveitem,onuseeffectupdate,ondeleteall,onopenpopupedit }){
 
     useEffect(()=>{
         Aos.init();
-    },[]);
+    });
 
     return (
         <section className={stylesheet.container}>
             <div id="container-tarefa" className={stylesheet.container_tarefa}>
-            <ListItens itens={itens} onremoveitem={onremoveitem} onuseeffectupdate={onuseeffectupdate}/>
+            <ListItens itens={itens} onremoveitem={onremoveitem} onuseeffectupdate={onuseeffectupdate} onopenpopup={onopenpopupedit}/>
             {
                 itens.length == 0 ?
                 (

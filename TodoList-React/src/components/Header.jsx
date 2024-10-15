@@ -8,7 +8,7 @@ function Header({title, addnewitem}){
 
     useEffect(()=>{
         Aos.init();
-    },[]);
+    });
 
     return (
         <header className={stylesheet.container}>    

@@ -5,11 +5,13 @@ import { useEffect, useState } from "react";
 import Ogg from "../audio/isDoneTask.ogg";
 import Aos from "aos";
 import "aos/dist/aos.css";
+import CheckOut from "../img/check-out.png";
+import CheckIn from "../img/check-in.png";
 
-function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
+function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem,onopenpopupedit}){
 
     const itemProperties = {
-        "src":["https://cdn.discordapp.com/attachments/741731794772295805/1293328013550944268/check-in.png?ex=6706f913&is=6705a793&hm=2db601a36db622723327c375829a43450987f053cd956812c3eb8a531b1341c4&","https://cdn.discordapp.com/attachments/741731794772295805/1293328013320261714/check-out.png?ex=6706f913&is=6705a793&hm=f4fb8a2761c7a67cfcef2695fe0025328c97c719c1d046f257e19d8c7f1ebe88&"],
+        "src": [CheckIn,CheckOut],
         "style": {"textDecoration":["line-through","none"],"opacity":[0.5,1]},
         "state": false,
         "animation" : "flip-up"
@@ -47,15 +49,15 @@ function Item({id,tarefa,isDone, onremoved, onuseeffectupdateitem}){
     useEffect(()=>
     {
         Aos.init();
-    },[]);
+    });
 
     return (
     <div data-aos="fade-right" key={id} id={id} className={stylesheet.item + (item.state ?" Done":" unDone")}>
         <div className={stylesheet.container_touch} onClick={OnClickItemNew}>
-            <img src={ item.src}/>
+            <img src={ item.src} type="image/png"/>
             <h2 style={ item.style}>{tarefa}</h2>
         </div>
-        <img className="item_option" src="/src/img/options.png"/>
+        <img className={stylesheet.item_options} onClick={ () => onopenpopupedit({ "state" :true, "target": {"id": item.id, "tarefa": tarefa}})} src="/src/img/options.png"/>
         <button className={stylesheet.btn_delete} onClick={()=> onremoved(id)}>Deletar</button>
     </div>)
 }

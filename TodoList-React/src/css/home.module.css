@@ -73,7 +73,7 @@ body{
     justify-content: center;
     align-items: center;
     background-color: bisque;
-    flex-wrap: wrap row;
+    flex-wrap: nowrap row;
     margin: 0px;
     margin-bottom: 10px;
     border-top-right-radius: 5px;
@@ -82,15 +82,28 @@ body{
     cursor: pointer;
 }
 
+.item_options{
+    opacity: 0.3;
+}
+
+.item_options:hover{
+    opacity: 1;
+}
+ 
 .container_touch{
     display: flex;
+    flex: 80%;
     justify-content: center;
     align-items: center;
     margin: 0px;
-    flex-wrap: wrap row;
-    flex: 80%;
+    flex-wrap: nowrap row;
+    overflow: hidden;
     height: 61px;
     padding: 0px;
+}
+
+.container_touch h2{
+    text-overflow: ellipsis;
 }
 
 .item h2{

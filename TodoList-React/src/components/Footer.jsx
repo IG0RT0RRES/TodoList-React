@@ -14,7 +14,7 @@ function Footer(){
 
     useEffect(()=>{
         Aos.init();
-    },[]);
+    });
 
     return (
     <footer>

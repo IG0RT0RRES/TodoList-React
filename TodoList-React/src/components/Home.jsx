@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 //Resources local
 import DeleteClip from "../audio/delete.wav";
 import ClickClip from "../audio/isDoneTask.ogg";
+import Popupstyle from "../css/popup.module.css";
 //Resources local
 
 //Library AOS Scrool animated
@@ -20,12 +21,14 @@ import ContainerList from "./ContainerList";
 import NavBar from "./NavBar";
 import Footer from "./Footer";
 import Layout from "./Layout";
+import Popup from "./Popup";
 //Components
 
 function Home(){   
     const [countItens,setCountItens] = useState(0);
     const [itens,setItens] = useState([]);
-    
+    const [openPopup,setOpenPopup] = useState({ "state" : false, "target": {"id":0 ,"tarefa":"Elemento Default"}});
+
     function AddNewItem(){
         let element = document.getElementById("input");
         OnCountReset();
@@ -78,10 +81,10 @@ function Home(){
             arraycp.splice(arraycp.indexOf(elem),1);
             arraycp.push(elem);
             SetLocalStorage('itens',arraycp);
+            OnLoadLocalStorage('itens');
         }else{
             SetLocalStorage('itens',itens);
         }
-        OnLoadLocalStorage('itens');
     }
 
     function GetElement(id,array)
@@ -127,7 +130,7 @@ function Home(){
             })
             for(let i = 0; i < newarray.length; i++){
                 let attr = document.getElementById(newarray[i].id).getAttribute("class");
-                newarray[i].state = attr.split(' ')[1];
+                newarray[i].state = attr.split(' ').filter(x=>x == "Done" || x=="unDone")[0];
             }
             localStorage.setItem(key,JSON.stringify(newarray));
         }
@@ -135,13 +138,46 @@ function Home(){
         {
             for(let i = 0; i < unsaved.length; i++){
                 let attr = document.getElementById(unsaved[i].id).getAttribute("class");
-                unsaved[i].state = attr.split(' ')[1];
+                unsaved[i].state = attr.split(' ').filter(x=>x == "Done" || x=="unDone")[0];
             }
             localStorage.setItem(key, JSON.stringify(unsaved));
         } else {
             localStorage.setItem(key,JSON.stringify(itens));
         }
     }
+
+    function SetItemForIndexInArray(index,item,list){
+        let newlist = [];
+        for(let i=0; i < list.length; i++){
+            newlist[i] = (i != index)? list[i] : item;
+        }
+        return newlist;
+    }
+
+    function OnClosePopup(){
+        let popup = document.getElementById("Popup");
+        popup.classList.remove(Popupstyle.parent_pop_up);
+        popup.classList.add(Popupstyle.parent_pop_up_event);
+        setOpenPopup({"state": false, "target": undefined});
+    }
+
+    const OnOpenPopUpEdit = (objectOld) =>{
+        if(objectOld != undefined && objectOld != null){
+            setOpenPopup(objectOld);
+            let popup = document.getElementById("Popup");
+            popup.classList.remove(Popupstyle.parent_pop_up_event);
+            popup.classList.add(Popupstyle.parent_pop_up);
+        }
+    };
+
+    const OnEditItemForText = (id, newText)=>{
+        let item  = GetElement(id,itens);
+        if(item !== undefined){
+            item.tarefa = newText;
+            SetLocalStorage('itens',SetItemForIndexInArray(itens.indexOf(item),item,itens));
+            OnLoadLocalStorage('itens');
+        }
+    };
 
     useEffect(()=>
     {
@@ -156,17 +192,24 @@ function Home(){
         {
             SetLocalStorage('itens',itens);
         }
-    },[]);
+    });
+
+    const elementosPage = 
+    [
+        <NavBar key={0} contact={"(21) 96544-2847"}/>,
+        <Header key={1} title={"ToDo List"} addnewitem={AddNewItem}/>,
+        <ContainerList key={2} itens={itens} onremoveitem={OnRemoveItem} onuseeffectupdate={OnUseEffectUpdate} ondeleteall={OnDeleteAll} onopenpopupedit={OnOpenPopUpEdit}/>,
+        <Footer key={3}/>,
+        <div key={4} className={Popupstyle.parent_pop_up_event } id="Popup">
+        {
+            openPopup.state && <Popup key={5} idItem={openPopup.target.id} tarefaitem={openPopup.target.tarefa} onclosepopup={ OnClosePopup } onedititemwithpopup={OnEditItemForText}/>
+        }
+        </div>
+    ];
 
     return (
         <>
-            <Layout elements=
-            {[
-                <NavBar key={0} contact={"(21) 96544-2847"}/>,
-                <Header key={1} title={"ToDo List"} addnewitem={AddNewItem}/>,
-                <ContainerList key={2} itens={itens} onremoveitem={OnRemoveItem} onuseeffectupdate={OnUseEffectUpdate} ondeleteall={OnDeleteAll}/>,
-                <Footer key={3}/>
-            ]}/>
+            <Layout elements={ elementosPage }/>
         </>
     )
 }

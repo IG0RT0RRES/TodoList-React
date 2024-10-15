@@ -9,15 +9,12 @@ function Layout({elements}){
 
     useEffect(()=>{
         Aos.init();
-    },[]);
+    });
 
     return (
         <div className={stylesheet.layout_container}> 
         {
-            elements.map((x)=>{
-                {/* console.log(x); */}
-                return x;
-            })
+            elements.map((x)=> x)
         }
         </div>
     )

@@ -1,18 +1,94 @@
-.pop_up{
+.parent_pop_up{
+    display: flex;
+    flex: 100%;
     position: fixed;
+    top: 0px;
+    left: 0px;
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+    align-items: center;
+    pointer-events: all;
+}
+
+.parent_pop_up_event{
+    display: flex;
+    flex: 100%;
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+}
+
+.pop_up{
+    flex: 100%;
+    flex-flow: nowrap column;
     text-align: center;
-    right: 30%;
-    top: 30%;
-    z-index: 10;
-    width: 600px;
-    height: 250px;
+    justify-content: center;
+    align-items: center;
+    width: 70%;
+    height: 330px;
+    margin-left: 15%;
+    margin-right: 15%;
+    flex-wrap: nowrap;
+    padding: 15px 0px 15px 0px;
     color: black;
-    background-color: white;
+    background-color: rgb(31, 30, 30);
+    border-radius: 5px;
+    overflow: hidden;
+    border: solid 4px #f38586;
+}
+
+.pop_up_input {
+    width: 50%;
+    margin-top: 10px;
+    margin-left: 25%;
+    margin-right: 25%;
+    border: none;
+}
+
+.pop_up_container_button {
+    display: inline-block;
+}
+
+.pop_up_container_button button{
+    margin: 5px;
+    width: 100px;
+    height: 35px;
+    background-color: #f38586;
+    border: none;
     border-radius: 5px;
 }
 
-.pop_up p {
+.pop_up_container_button button:hover{
+    color: white;
+    background-color: red;
+}
+
+.pop_up_p{
+    text-align: left;
+    word-wrap: break-word;
+    display: inline-block;
+    width: 80%;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    border-radius: 5px;
+    margin-left: 10%;
+    margin-right: 10%;
+    height: 200px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    font-size: 35px;
-    margin: 10px;
+    font-size: 15px;
+    
+}
+
+.container_pop_up_p{
+    background-color: rgb(229, 228, 227);
+    margin-left: 5%;
+    margin-right: 5%;
+    border-radius: 5px;
+    box-shadow: 1px 1px 10px black;
 }
