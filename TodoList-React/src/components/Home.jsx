@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 /* eslint-disable no-unused-vars */
 
 //React Library
@@ -8,11 +9,13 @@ import { useEffect, useState } from "react";
 import DeleteClip from "../audio/delete.wav";
 import ClickClip from "../audio/isDoneTask.ogg";
 import Popupstyle from "../css/popup.module.css";
+import Tarefa from "../Classes/Tarefa";
+import { GetDate } from "../Classes/DateOperations";
 //Resources local
 
 //Library AOS Scrool animated
 import Aos from "aos";
-import "aos/dist/aos.css";
+
 //Library AOS Srool animated
 
 //Components
@@ -25,9 +28,11 @@ import Popup from "./Popup";
 //Components
 
 function Home(){
+
+    const [date,setDates] = useState([new Date(),new Date()]);
     const [countItens,setCountItens] = useState(0);
     const [itens,setItens] = useState([]);
-    const [openPopup,setOpenPopup] = useState({ "state" : false, "target": {"id":0 ,"tarefa":"Elemento Default"}});
+    const [openPopup,setOpenPopup] = useState(new Tarefa(-1,false,"Elemento Default",GetDate(),GetDate()));
 
     function AddNewItem(){
         let element = document.getElementById("input");
@@ -35,7 +40,15 @@ function Home(){
         if((element.value !== "") && (element !== null) &&(element !== undefined)){
             PlayAudio(ClickClip);
             let array = itens.map((x)=> x);
-            array.push({"key":countItens,"id":countItens,"tarefa":element.value,"state":"unDone"});
+            array.push(
+            {
+                "key":countItens,
+                "id":countItens,
+                "tarefa":element.value,
+                "state":"unDone",
+                "date":GetDate(),
+                "modification":GetDate()
+            });
             element.value = "";
             element.focus();
             setItens(array);
@@ -44,7 +57,7 @@ function Home(){
             element.value ="";
         }
     }
-
+    
     function OnCountReset(){
         if(itens.length <= 0){
             setCountItens(0);
@@ -109,7 +122,7 @@ function Home(){
 
     function OnLoadLocalStorage(key){
         let itensSaved =  GetSavedLocalStorage(key);
-        if((itensSaved !== null) && (itensSaved !== undefined) && (itensSaved.length !== 0))
+        if((itensSaved != null) && (itensSaved != undefined) && (itensSaved.length != 0))
         {
             setItens(itensSaved);
             setCountItens(itensSaved.length);
@@ -158,11 +171,11 @@ function Home(){
         let popup = document.getElementById("Popup");
         popup.classList.remove(Popupstyle.parent_pop_up);
         popup.classList.add(Popupstyle.parent_pop_up_event);
-        setOpenPopup({"state": false, "target": undefined});
+        setOpenPopup(new Tarefa(-1, false, "Default", GetDate(), GetDate()));        
     }
 
     const OnOpenPopUpEdit = (objectOld) =>{
-        if(objectOld != undefined && objectOld != null){
+            if(objectOld != undefined && objectOld != null){
             setOpenPopup(objectOld);
             let popup = document.getElementById("Popup");
             popup.classList.remove(Popupstyle.parent_pop_up_event);
@@ -172,8 +185,9 @@ function Home(){
 
     const OnEditItemForText = (id, newText)=>{
         let item  = GetElement(id,itens);
-        if(item !== undefined){
+        if(item != undefined){
             item.tarefa = newText;
+            item.modification = GetDate();
             SetLocalStorage('itens',SetItemForIndexInArray(itens.indexOf(item),item,itens));
             OnLoadLocalStorage('itens');
         }
@@ -191,18 +205,22 @@ function Home(){
         if((getItens !== undefined && getItens != null && getItens.length < itens.length) || itens.length == 0)
         {
             SetLocalStorage('itens',itens);
-        }
+        }        
     });
+
+    const elementPopup = {
+        "Popup" : <Popup key={5} Item={openPopup} onclosepopup={ OnClosePopup } onedititemwithpopup={OnEditItemForText}/>
+    };
 
     const elementosPage =
     [
         <NavBar key={0} contact={"(21) 96544-2847"}/>,
-        <Header key={1} title={"ToDo List"} addnewitem={AddNewItem}/>,
+        <Header key={1} title={"ToDo List"} addnewitem={AddNewItem} setdateshome={(forDate, expiredDate)=> setDates(forDate,expiredDate)}/>,
         <ContainerList key={2} itens={itens} onremoveitem={OnRemoveItem} onuseeffectupdate={OnUseEffectUpdate} ondeleteall={OnDeleteAll} onopenpopupedit={OnOpenPopUpEdit}/>,
         <Footer key={3}/>,
         <div key={4} className={Popupstyle.parent_pop_up_event } id="Popup">
         {
-            openPopup.state && <Popup key={5} idItem={openPopup.target.id} tarefaitem={openPopup.target.tarefa} onclosepopup={ OnClosePopup } onedititemwithpopup={OnEditItemForText}/>
+            openPopup.Status && elementPopup.Popup
         }
         </div>
     ];

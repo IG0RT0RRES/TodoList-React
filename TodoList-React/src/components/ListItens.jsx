@@ -10,7 +10,7 @@ function ListItens({itens,onremoveitem, onuseeffectupdate,onopenpopup}){
         Aos.init();
     });
 
-    return (<>{itens.map((item)=>(<Item key={item.id} id={item.id} tarefa={item.tarefa} isDone={item.state == "Done"} onremoved={ ()=>onremoveitem(item.id)} onuseeffectupdateitem={onuseeffectupdate} onopenpopupedit={onopenpopup}/>))}</>)
+    return (<>{itens.map((item)=>(<Item key={item.id} Item={item} onremoved={ ()=>onremoveitem(item.id)} onuseeffectupdateitem={onuseeffectupdate} onopenpopupedit={onopenpopup}/>))}</>)
 }
 
 export default ListItens
