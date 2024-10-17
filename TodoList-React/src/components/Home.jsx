@@ -10,7 +10,7 @@ import DeleteClip from "../audio/delete.wav";
 import ClickClip from "../audio/isDoneTask.ogg";
 import Popupstyle from "../css/popup.module.css";
 import Tarefa from "../Classes/Tarefa";
-import { GetDate } from "../Classes/DateOperations";
+import { GetDate, AddDaysInDate } from "../Classes/DateOperations";
 //Resources local
 
 //Library AOS Scrool animated
@@ -32,7 +32,7 @@ function Home(){
     const [date,setDates] = useState([new Date(),new Date()]);
     const [countItens,setCountItens] = useState(0);
     const [itens,setItens] = useState([]);
-    const [openPopup,setOpenPopup] = useState(new Tarefa(-1,false,"Elemento Default",GetDate(),GetDate()));
+    const [openPopup,setOpenPopup] = useState(new Tarefa(-1,false,"Elemento Default",GetDate(new Date()),GetDate(new Date())));
 
     function AddNewItem(){
         let element = document.getElementById("input");
@@ -46,8 +46,8 @@ function Home(){
                 "id":countItens,
                 "tarefa":element.value,
                 "state":"unDone",
-                "date":GetDate(),
-                "modification":GetDate()
+                "date":GetDate(new Date()),
+                "modification":GetDate(new Date())
             });
             element.value = "";
             element.focus();
@@ -171,7 +171,7 @@ function Home(){
         let popup = document.getElementById("Popup");
         popup.classList.remove(Popupstyle.parent_pop_up);
         popup.classList.add(Popupstyle.parent_pop_up_event);
-        setOpenPopup(new Tarefa(-1, false, "Default", GetDate(), GetDate()));        
+        setOpenPopup(new Tarefa(-1, false, "Default", GetDate(new Date()), GetDate(new Date())));        
     }
 
     const OnOpenPopUpEdit = (objectOld) =>{
@@ -187,7 +187,7 @@ function Home(){
         let item  = GetElement(id,itens);
         if(item != undefined){
             item.tarefa = newText;
-            item.modification = GetDate();
+            item.modification = GetDate(new Date());
             SetLocalStorage('itens',SetItemForIndexInArray(itens.indexOf(item),item,itens));
             OnLoadLocalStorage('itens');
         }
