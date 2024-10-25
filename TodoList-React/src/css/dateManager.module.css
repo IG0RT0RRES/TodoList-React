@@ -1,0 +1,18 @@
+.dateManager_label{
+    color: white;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.select{
+    text-align: center;
+    margin-right: 10px;
+    margin-left: 3px;
+    border: none;
+    outline: none;
+    border-radius: 50px;
+    padding: 5px;
+}
+
+.options{
+    margin: 5px;
+}

@@ -7,6 +7,10 @@ body{
     background-color: rgb(31, 30, 30);
 }
 
+.root{
+    display: flex;
+}
+
 .container{
     max-width: 80%;
     text-align: center;
@@ -14,14 +18,6 @@ body{
     margin-right: 10%;
 }
 
-
-.header_options{
-    margin: 5px;
-}
-
-.header_options label{
-    margin-left: 5px;
-}
 .container h1{
     color: white;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

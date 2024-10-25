@@ -1,7 +1,6 @@
 /* eslint-disable react/prop-types */
 import stylesheet from "../css/layout.module.css"
 import Aos from "aos";
-import "aos/dist/aos.css";
 
 import { useEffect } from "react";
 

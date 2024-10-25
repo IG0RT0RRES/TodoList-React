@@ -5,7 +5,6 @@ import { FaSquareYoutube } from "react-icons/fa6";
 import { FaSquareInstagram } from "react-icons/fa6";
 import { MdEmail } from "react-icons/md";
 import Aos from "aos";
-import "aos/dist/aos.css";
 
 import styleSheet from "../css/footer.module.css"
 import { useEffect } from "react";

@@ -8,9 +8,13 @@ import { useEffect, useState } from "react";
 //Resources local
 import DeleteClip from "../audio/delete.wav";
 import ClickClip from "../audio/isDoneTask.ogg";
+import Denied from "../audio/denied.wav";
 import Popupstyle from "../css/popup.module.css";
+import homestylesheet from "../css/home.module.css";
+import popupstylesheet from "../css/popup.module.css";
+
 import Tarefa from "../Classes/Tarefa";
-import { GetDate, AddDaysInDate } from "../Classes/DateOperations";
+import { Now, Tomorrow, DateComparison, IsConclued, IsExpired, DateToZeroHours, IsPendent } from "../Classes/DateOperations";
 //Resources local
 
 //Library AOS Scrool animated
@@ -29,39 +33,57 @@ import Popup from "./Popup";
 
 function Home(){
 
-    const [date,setDates] = useState([new Date(),new Date()]);
-    const [countItens,setCountItens] = useState(0);
+    const [itensFiltred,setItensFiltred] = useState([]);
+    const [methodFilter,setMethodFilter] = useState({"Filter": (x)=> {return x}});
+
+    const [dateOptions,setDates] = useState([Now(),Tomorrow()]);
     const [itens,setItens] = useState([]);
-    const [openPopup,setOpenPopup] = useState(new Tarefa(-1,false,"Elemento Default",GetDate(new Date()),GetDate(new Date())));
+    const [openPopup,setOpenPopup] = useState(new Tarefa(-1,false,"Elemento Default",Tarefa.GetDateObject(Now()),Tarefa.GetDateObject(Now()),Tarefa.GetDateObject(Now()),Tarefa.GetDateObject(Now()),Tarefa.GetDateObject(Now()),0));
 
     function AddNewItem(){
+        if(DateComparison(dateOptions[0],dateOptions[1]) == 1)
+        {
+            PlayAudio(Denied);
+            return alert(`A data inicial ${ Tarefa.GetDateObject(dateOptions[0]).ToStringShort() }, não pode ser maior que a data final ${ Tarefa.GetDateObject(dateOptions[1]).ToStringShort() }!`);
+        }
+
         let element = document.getElementById("input");
-        OnCountReset();
-        if((element.value !== "") && (element !== null) &&(element !== undefined)){
+        if((element.value != "") && (element != null) &&(element != undefined)){
             PlayAudio(ClickClip);
             let array = itens.map((x)=> x);
+            let getId = GetNewIdUnReverd();
             array.push(
             {
-                "key":countItens,
-                "id":countItens,
+                "key":getId,
+                "id":getId,
                 "tarefa":element.value,
                 "state":"unDone",
-                "date":GetDate(new Date()),
-                "modification":GetDate(new Date())
+                "date": Tarefa.GetDateObject(Now()),
+                "modificacao":Tarefa.GetDateObject(Now()),
+                "expiracao":Tarefa.GetDateObject(dateOptions[1]),
+                "validade": Tarefa.GetDateObject(dateOptions[0]),
+                "conclusao":Tarefa.GetDateObject(new Date(1800,11,31,0,0,0,0)),
+                "qtdeModificacao": 0
             });
             element.value = "";
             element.focus();
             setItens(array);
-            setCountItens(countItens + 1);
         }else{
+            PlayAudio(Denied);
             element.value ="";
         }
     }
-    
-    function OnCountReset(){
-        if(itens.length <= 0){
-            setCountItens(0);
+
+    function GetNewIdUnReverd(){
+        if(itens == undefined || itens.length == 0){
+            return 0;
         }
+        let ids = itens.map((x)=> x.id);
+        let i = 0;
+        while(ids.find((x)=> x == i) != undefined){
+            i++;
+        }
+        return i;
     }
 
     function PlayAudio(clip){
@@ -79,24 +101,27 @@ function Home(){
         if(itens.length == 1)
         {
             localStorage.clear();
-            setCountItens(0);
         }
         setItens(lista);
         SetLocalStorage('itens',lista);
     }
 
-    const OnUseEffectUpdate = (id,state)=>
-    {
+    const OnUseEffectUpdate = (id, state)=>
+    {   
+        let arraycp = itens.map((e)=>e);
+        let elem = GetElement(id,itens);
+
         if(state)
         {
-            let arraycp = itens.map((e)=>e);
-            let elem = GetElement(id,itens);
+            elem.conclusao = Tarefa.GetDateObject(Now());
             arraycp.splice(arraycp.indexOf(elem),1);
             arraycp.push(elem);
             SetLocalStorage('itens',arraycp);
-            OnLoadLocalStorage('itens');
+            OnLoadLocalStorage('itens');            
+            setItensFiltred(methodFilter.Filter(arraycp));
         }else{
-            SetLocalStorage('itens',itens);
+            elem.conclusao = Tarefa.GetDateObject(new Date(1800, 11, 31, 0, 0, 0, 0));
+            SetLocalStorage('itens',itens);   
         }
     }
 
@@ -117,15 +142,14 @@ function Home(){
         PlayAudio(DeleteClip);
         localStorage.clear();
         setItens([]);
-        setCountItens(0);
     }
 
     function OnLoadLocalStorage(key){
         let itensSaved =  GetSavedLocalStorage(key);
+
         if((itensSaved != null) && (itensSaved != undefined) && (itensSaved.length != 0))
         {
             setItens(itensSaved);
-            setCountItens(itensSaved.length);
         }
     }
 
@@ -142,8 +166,13 @@ function Home(){
                 return self.indexOf(elem) == pos;
             })
             for(let i = 0; i < newarray.length; i++){
-                let attr = document.getElementById(newarray[i].id).getAttribute("class");
-                newarray[i].state = attr.split(' ').filter(x=>x == "Done" || x=="unDone")[0];
+                try{
+                    let attr = document.getElementById(newarray[i].id).getAttribute("class");
+                    newarray[i].state = attr.split(' ').filter(x=>x == "Done" || x=="unDone")[0];
+                }catch{
+                    let attr = itens.filter((e)=> e.id == newarray[i].id)[0].state;
+                    newarray[i].state = attr;
+                }                
             }
             localStorage.setItem(key,JSON.stringify(newarray));
         }
@@ -171,11 +200,11 @@ function Home(){
         let popup = document.getElementById("Popup");
         popup.classList.remove(Popupstyle.parent_pop_up);
         popup.classList.add(Popupstyle.parent_pop_up_event);
-        setOpenPopup(new Tarefa(-1, false, "Default", GetDate(new Date()), GetDate(new Date())));        
+        setOpenPopup(new Tarefa(-1, false, "Default", Tarefa.GetDateObject(Now()), Tarefa.GetDateObject(Now()),Tarefa.GetDateObject(Now()),Tarefa.GetDateObject(Now()),Tarefa.GetDateObject(Now()),0));        
     }
 
     const OnOpenPopUpEdit = (objectOld) =>{
-            if(objectOld != undefined && objectOld != null){
+        if(objectOld != undefined && objectOld != null){
             setOpenPopup(objectOld);
             let popup = document.getElementById("Popup");
             popup.classList.remove(Popupstyle.parent_pop_up_event);
@@ -187,9 +216,11 @@ function Home(){
         let item  = GetElement(id,itens);
         if(item != undefined){
             item.tarefa = newText;
-            item.modification = GetDate(new Date());
+            item.modificacao = Tarefa.GetDateObject(Now());
+            item.qtdeModificacao++;
             SetLocalStorage('itens',SetItemForIndexInArray(itens.indexOf(item),item,itens));
             OnLoadLocalStorage('itens');
+            setItensFiltred(methodFilter.Filter(itens));
         }
     };
 
@@ -205,30 +236,80 @@ function Home(){
         if((getItens !== undefined && getItens != null && getItens.length < itens.length) || itens.length == 0)
         {
             SetLocalStorage('itens',itens);
+        }
+
+        if(itensFiltred.length != methodFilter.Filter(itens).length){
+            setItensFiltred(methodFilter.Filter(itens));
+        }
+
+        return ()=>{
         }        
     });
 
-    const elementPopup = {
-        "Popup" : <Popup key={5} Item={openPopup} onclosepopup={ OnClosePopup } onedititemwithpopup={OnEditItemForText}/>
+    function CallbackFilter(func){
+        setMethodFilter({"Filter":func});
+        try
+        {
+            setItensFiltred(func(itens));
+        }catch(error){
+            console.log(error);
+        }
+    }
+
+    const updateFunc = (id)=> {
+        return itens.find((x)=> x.id == id);
     };
+
+    const optionsObject = [
+        { 
+            "Title" : "Detalhes", 
+            "Content": 
+            <p className={ popupstylesheet.pop_up_p }>
+                {"Criado em : " + Tarefa.GetDateObject(Tarefa.GetDefaultDate(openPopup.Data)).ToString()}<br/>
+                {"Para: " + Tarefa.GetDateObject(Tarefa.GetDefaultDate(openPopup.Validade)).ToStringShort()}<br/>
+                {"Expira em: " + Tarefa.GetDateObject(Tarefa.GetDefaultDate(openPopup.Expiracao)).ToStringShort()}<br/>
+                {
+                    (openPopup.QtdeModificacao > 0? "Ultima modificação em: " + Tarefa.GetDateObject(Tarefa.GetDefaultDate(openPopup.Modificacao)).ToString() : "OBS: Sem modificações.")
+                }<br/>
+                {
+                    openPopup.QtdeModificacao > 0 && "Qtde: " + openPopup.QtdeModificacao
+                }<br/>
+                {/* {
+                    IsPendent(Tarefa.GetDefaultDate(openPopup.Conclusao),Tarefa.GetDefaultDate(openPopup.Expiracao),Tarefa.GetDefaultDate(openPopup.Validade))? 
+                    "Status: Pendente" : ("Status: " (IsConclued() &&)? "" :"")
+                }<br/> */}
+                {
+                    IsConclued(Tarefa.GetDefaultDate(openPopup.Conclusao)) && "Concluído em: " + Tarefa.GetDateObject(Tarefa.GetDefaultDate(openPopup.Conclusao)).ToString()
+                }<br/>
+                {
+                    IsExpired(Tarefa.GetDefaultDate(openPopup.Conclusao),Tarefa.GetDefaultDate(openPopup.Expiracao)) && "Expirada em: " + Tarefa.GetDateObject(Tarefa.GetDefaultDate(openPopup.Expiracao)).ToStringShort()
+                }<br/>
+                {
+                    (IsExpired(Tarefa.GetDefaultDate(openPopup.Conclusao),Tarefa.GetDefaultDate(openPopup.Expiracao)) && !IsConclued(Tarefa.GetDefaultDate(openPopup.Conclusao))) && "Tarefa não concluída no prazo."
+                }
+            </p>
+        }
+    ];
+
+    const elementPopup = <Popup key={5} Item={openPopup} options={optionsObject} onclosepopup={ OnClosePopup } onedititemwithpopup={OnEditItemForText}/>;
 
     const elementosPage =
     [
-        <NavBar key={0} contact={"(21) 96544-2847"}/>,
-        <Header key={1} title={"ToDo List"} addnewitem={AddNewItem} setdateshome={(forDate, expiredDate)=> setDates(forDate,expiredDate)}/>,
-        <ContainerList key={2} itens={itens} onremoveitem={OnRemoveItem} onuseeffectupdate={OnUseEffectUpdate} ondeleteall={OnDeleteAll} onopenpopupedit={OnOpenPopUpEdit}/>,
+        <NavBar key={0} contact={"(21) 96544-2847"} callbackfilter={CallbackFilter}/>,
+        <Header key={1} title={"ToDo List"} addnewitem={AddNewItem} setdateshome={(forDate, expiredDate)=> {setDates([forDate,expiredDate]);}}/>,
+        <ContainerList key={2} itens={itensFiltred}  onremoveitem={OnRemoveItem} onuseeffectupdate={OnUseEffectUpdate} ondeleteall={OnDeleteAll} onopenpopupedit={OnOpenPopUpEdit} updatehome={updateFunc}/>,
         <Footer key={3}/>,
         <div key={4} className={Popupstyle.parent_pop_up_event } id="Popup">
         {
-            openPopup.Status && elementPopup.Popup
+            openPopup.Status && elementPopup
         }
         </div>
     ];
 
     return (
-        <>
+        <div className={homestylesheet.root}>
             <Layout elements={ elementosPage }/>
-        </>
+        </div>
     )
 }
 

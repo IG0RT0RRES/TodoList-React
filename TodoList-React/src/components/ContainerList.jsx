@@ -8,7 +8,7 @@ import Aos from "aos";
 import "aos/dist/aos.css";
 import { useEffect } from "react";
 
-function ContainerList({itens,onremoveitem,onuseeffectupdate,ondeleteall,onopenpopupedit }){
+function ContainerList({itens,onremoveitem,onuseeffectupdate,ondeleteall,onopenpopupedit,updatehome}){
 
     useEffect(()=>{
         Aos.init();
@@ -17,7 +17,7 @@ function ContainerList({itens,onremoveitem,onuseeffectupdate,ondeleteall,onopenp
     return (
         <section className={stylesheet.container}>
             <div id="container-tarefa" className={stylesheet.container_tarefa}>
-            <ListItens itens={itens} onremoveitem={onremoveitem} onuseeffectupdate={onuseeffectupdate} onopenpopup={onopenpopupedit}/>
+            <ListItens itens={itens} onremoveitem={onremoveitem} onuseeffectupdate={onuseeffectupdate} onopenpopup={onopenpopupedit} updatehome={updatehome}/>
             {
                 itens.length == 0 ?
                 (

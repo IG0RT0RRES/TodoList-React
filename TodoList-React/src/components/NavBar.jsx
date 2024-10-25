@@ -5,8 +5,9 @@ import "aos/dist/aos.css";
 
 import styleSheet from "../css/navbar.module.css";
 import { useEffect } from "react";
+import Filter from "./Filter";
 
-function NavBar({contact}){
+function NavBar({contact, callbackfilter}){
 
     useEffect(()=>{
         Aos.init();
@@ -15,9 +16,12 @@ function NavBar({contact}){
     return (
         <nav data-aos="fade-down" className={styleSheet.nav_bar}>
             <div className={styleSheet.navbar_container}>
+                <div className={styleSheet.navbar_container_options}>
+                    <Filter onfiltercallback={callbackfilter}/>
+                </div>
                 <p>{contact}</p>
-                <hr></hr>
             </div>
+            <hr></hr>
         </nav>)
 }
 

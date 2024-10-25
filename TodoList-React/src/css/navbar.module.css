@@ -1,13 +1,25 @@
 .navbar_container{
-    width: 100%;
+    display: flex;
+    flex: 100%;
+    align-items: flex-end;
+    justify-content: center;
     height: 50px;
     margin: 0px;
     color: white;
 }
 
+.navbar_container_options{
+    flex: 70%;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+}
+
 .navbar_container p {
+    flex: 30%;
     text-align: right;
     color: #ca9126;
+    margin: 0px;
 }
 
 .nav_bar{

@@ -1,4 +1,4 @@
-import stylesheet from "../css/feed.modules.css";
+import stylesheet from "../css/feed.module.css";
 
 function Feed(){
     return (
