@@ -17,10 +17,6 @@ function Popup({Item, options, onclosepopup, onedititemwithpopup}){
     const [aba,setAba] = useState(0);
     
     const [contentOption,setcontenteOption] = useState(<p className={stylesheet.pop_up_p} title={tarefaCurrent}>{tarefaCurrent}</p>);
-    const sectionBody =
-    <div className={stylesheet.container_pop_up_p}>
-        {contentOption}
-    </div>
 
     useEffect(()=>{
         Aos.init();
@@ -48,17 +44,26 @@ function Popup({Item, options, onclosepopup, onedititemwithpopup}){
         setAba(0);
     }
 
+    const sectionBody =
+        <div className={stylesheet.container_pop_up_p}>
+            {contentOption}
+        </div>;
+
     const optionsElement = 
     <div className={stylesheet.pop_up_navbar_container}>
         <ul>
             <li onClick={()=> 
             {
+                if(edit)
+                    return;
                 SetDefaultContent(); 
             }}>Tarefa</li>
             {   options.map((el,i)=><li key={i} onClick=
                 {
                     ()=>
-                    {
+                    {   
+                        if(edit)
+                            return;
                         setcontenteOption(el.Content);
                         setAba(i+1);
                     }
@@ -73,7 +78,9 @@ function Popup({Item, options, onclosepopup, onedititemwithpopup}){
             { options != undefined && optionsElement }
             <PopupSection elemento={sectionBody}/>
             {
-                aba == 0 && <PopupFooter Edit={edit} Item={item} tarefaCurrent={tarefaCurrent} OnEdit={setTarefaCurrent} onclosepopup={onclosepopup} itemwithpopup={onedititemwithpopup} setEdit={setEdit}/>
+                aba == 0 && <PopupFooter Edit={edit} Item={item} tarefaCurrent={tarefaCurrent} OnEdit={(result)=>{
+                    setTarefaCurrent(result);
+                }} onclosepopup={onclosepopup} itemwithpopup={onedititemwithpopup} setEdit={setEdit}/>
             }
         </div>
     )
