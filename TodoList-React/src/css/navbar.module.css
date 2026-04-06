@@ -28,3 +28,16 @@
     margin-left:  10%;
     margin-right: 10%;
 }
+
+.Politica_de_Privacidade {
+    background-color: transparent;
+    border: none;
+    color: #ca9126;
+    font-size: 16px;
+    cursor: pointer;
+    margin-left: 20px;
+    
+    /* Adicione estas linhas abaixo */
+    white-space: nowrap;       /* Impede a quebra de linha */
+    display: inline-block;     /* Garante que o elemento respeite o conteúdo */
+}

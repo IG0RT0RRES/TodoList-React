@@ -19,6 +19,9 @@ function NavBar({contact, callbackfilter}){
                 <div className={styleSheet.navbar_container_options}>
                     <Filter onfiltercallback={callbackfilter}/>
                 </div>
+                <button className={styleSheet.Politica_de_Privacidade} onClick={() => window.open('/privacidade', '_blank')}>
+                    Políticas de Privacidade
+                </button>
                 <p>{contact}</p>
             </div>
             <hr></hr>
