@@ -5,7 +5,7 @@ const WebHook = ({ title, description, color, properties }) => {
     
     useEffect(() => {
         const sendWebHook = async () => {
-            const webhookUrl = 'https://discord.com/api/webhooks/1441113413878026301/dpuZeDbFuPXZeF5R2sjhB9sL-hsKSvwr6Dm5LdS1ZUauRhVRFE2l5v7aVbTrBFIeiHmY';
+            const webhookUrl = import.meta.env.VITE_DISCORD_WEBHOOK_URL; // Pegando a URL do Webhook do arquivo .env
 
             const payload = {
                 username: 'Page Quiz Bot TodoList', // Optional: Custom username for the bot
