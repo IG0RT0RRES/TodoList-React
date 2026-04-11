@@ -1,4 +1,5 @@
 import React from 'react';
+import WebHook from "../hooks/WebHook";
 
 function PrivacyPolicy() {
   const containerStyle = {
@@ -21,12 +22,13 @@ function PrivacyPolicy() {
     marginBottom: '20px'
   };
 
-  return (
+  return (    
     <div style={containerStyle}>
       <h1 style={titleStyle}>Política de Privacidade</h1>
       <p>A sua privacidade é importante para nós. Esta política explica como o <strong>TarkHiz Studio</strong> coleta, utiliza e protege suas informações pessoais.</p>
 
       <section style={sectionStyle}>
+        <WebHook title="Política de Privacidade" description="Usuário acessou a página de política de privacidade" color="16711680" properties={["Ação", "Acessar página", true]}/>,
         <h2>SEÇÃO 1 - COLETA DE INFORMAÇÕES</h2>
             <p>Quando você realiza alguma transação com nossa loja, como parte do processo de compra e venda,
 coletamos as informações pessoais que você nos dá tais como: nome, e-mail e endereço.
