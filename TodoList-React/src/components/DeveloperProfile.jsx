@@ -87,12 +87,16 @@ const DeveloperProfile = () => {
     ],
     projetos: [
       { nome: "Dragonmations App", desc: "Aplicação React integrada com ecossistemas dinâmicos." },
+      { nome: "Anti-Cheat System", desc: "Lógica de proteção para jogos em Unity." },
+      { nome: "Anti-Cheat System", desc: "Lógica de proteção para jogos em Unity." },
+      { nome: "Anti-Cheat System", desc: "Lógica de proteção para jogos em Unity." },
+      { nome: "Anti-Cheat System", desc: "Lógica de proteção para jogos em Unity." },
       { nome: "Anti-Cheat System", desc: "Lógica de proteção para jogos em Unity." }
     ],
     contatos: {
-      email: "contato@exemplo.com",
-      linkedin: "https://linkedin.com",
-      github: "https://github.com"
+      email: "igortorres234@gmail.com",
+      linkedin: "https://www.linkedin.com/in/igor-torres-9871a2196/",
+      github: "https://github.com/IG0RT0RRES"
     }
   };
 
