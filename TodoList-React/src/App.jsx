@@ -1,7 +1,7 @@
 import { BrowserRouter,Routes, Route } from 'react-router-dom'
 import Home from './components/Home'
 import PrivacyPolicy from './components/PrivacyPolicy'
-import Developer from './components/Developer'
+import DeveloperProfile from './components/DeveloperProfile'
 
 function App() {
   return (
@@ -10,7 +10,7 @@ function App() {
             <Routes>
               <Route path='/' element={<Home/>}/>
               <Route path="/privacidade" element={<PrivacyPolicy/>} />
-              <Route path="/dev" element={<Developer/>} />
+              <Route path="/dev" element={<DeveloperProfile/>} />
             </Routes>
           </BrowserRouter>
         </div>)
