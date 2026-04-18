@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 
 // Use desestruturação padrão do JS (sem o $)
-const WebHook = ({ title, description, color, properties }) => {
+const WebHook = ({ title, description, Info, color, properties }) => {
     
     useEffect(() => {
         const sendWebHook = async () => {
@@ -13,7 +13,7 @@ const WebHook = ({ title, description, color, properties }) => {
                 content: 'Callback from Page Quiz Privacy Policy',
                 embeds: [{
                     title: title,       
-                    description: description,
+                    description: description + "\r\n" + Info,
                     color: parseInt(color) || 0,
                     fields: [
                         { 
