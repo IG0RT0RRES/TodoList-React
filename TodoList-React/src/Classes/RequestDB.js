@@ -19,7 +19,7 @@ export const request = {
 };
 
 export const requestlist = {
-    urlList: "https://tarkhizstudio.hopto.org:48/UnityBackend/apiquiz-restclient-dev.com.br/RankedProfilesGet.php",
+    urlList: "http://tarkhizstudio.hopto.org:46/UnityBackend/apiquiz-restclient-dev.com.br/RankedProfilesGet.php",
     urlListDefault : "http://localhost:46/UnityBackend/apiquiz-restclient-dev.com.br/RankedProfilesGet.php",
     GetProfilesList: async () => {
         try {
