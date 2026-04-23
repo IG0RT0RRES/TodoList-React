@@ -4,11 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/src/img/lista-de-controle.png" />
-    <title>ToDo List</title>
+    <title>Quiz of Challenger - ToDo List</title> <link rel="stylesheet" href="https://unpkg.com/aos@2.3.1/dist/aos.css" />
   </head>
   <body>
     <div id="root"></div>
+
+    <script src="https://download.playfab.com/PlayFabClientApi.js"></script>
+
+    <script>
+      // O SDK do PlayFab e algumas bibliotecas esperam 'global' ou 'Buffer'
+      if (typeof window.global === 'undefined') {
+        window.global = window;
+      }
+      if (typeof window.Buffer === 'undefined') {
+        // Mock básico para evitar erros de referência antes do polyfill carregar no main.jsx
+        window.Buffer = { isBuffer: () => false };
+      }
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
+
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
   </body>
 </html>
