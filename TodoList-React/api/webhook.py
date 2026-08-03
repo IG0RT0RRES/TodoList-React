@@ -63,26 +63,15 @@ class handler(BaseHTTPRequestHandler):
       content_length = int(self.headers.get("Content-Length", 0))
       body_data = self.rfile.read(content_length)
       body = json.loads(body_data.decode("utf-8"))
-    except Exception as e:
-      self.send_response(400)
-      self.send_header("Content-type", "application/json")
-      self.end_headers()
-      self.wfile.write(
-          json.dumps(
-              {"status": "error", "message": f"Invalid payload: {str(e)}"}
-          ).encode("utf-8")
-      )
-      return
 
-    event_type = body.get("type")
+      event_type = body.get("type")
 
-    if event_type == "checkout.session.completed":
-      session = body.get("data", {}).get("object", {})
-      customer_email = session.get("customer_details", {}).get(
-          "email", "Cliente desconhecido"
-      )
+      if event_type == "checkout.session.completed":
+        session = body.get("data", {}).get("object", {})
+        customer_email = session.get("customer_details", {}).get(
+            "email", "Cliente desconhecido"
+        )
 
-      try:
         drive_service = get_drive_service()
 
         # 1. Baixar o Config.json atual do Google Drive
@@ -126,23 +115,22 @@ class handler(BaseHTTPRequestHandler):
         )
         return
 
-      except Exception as ex:
-        self.send_response(500)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(
-            json.dumps(
-                {"status": "error", "message": f"Internal error: {str(ex)}"}
-            ).encode("utf-8")
-        )
-        return
+      self.send_response(200)
+      self.send_header("Content-type", "application/json")
+      self.end_headers()
+      self.wfile.write(
+          json.dumps({"status": "ignored", "event": event_type}).encode("utf-8")
+      )
 
-    self.send_response(200)
-    self.send_header("Content-type", "application/json")
-    self.end_headers()
-    self.wfile.write(
-        json.dumps({"status": "ignored", "event": event_type}).encode("utf-8")
-    )
+    except Exception as ex:
+      # Devolve o detalhe exato do erro na resposta HTTP para facilitar a leitura no Stripe
+      self.send_response(500)
+      self.send_header("Content-type", "application/json")
+      self.end_headers()
+      self.wfile.write(
+          json.dumps({"status": "error", "detalhe": str(ex)}).encode("utf-8")
+      )
+      return
 
   def do_GET(self):
     self.send_response(200)
@@ -152,4 +140,4 @@ class handler(BaseHTTPRequestHandler):
         json.dumps(
             {"status": "active", "message": "Webhook endpoint is running"}
         ).encode("utf-8")
-)
+  )
