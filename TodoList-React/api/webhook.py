@@ -1,4 +1,3 @@
-from http.server import BaseHTTPRequestHandler
 import io
 import json
 import os
@@ -34,6 +33,82 @@ def enviar_webhook_discord(license_key, customer_email):
     return
 
   payload = {
+      "username": "Stripe License Bot",
+      "content": "Novo pagamento processado com sucesso!",
+      "embeds": [{
+          "title": "Nova Licença Gerada",
+          "description": (
+              "Um pagamento foi confirmado no Stripe e a chave foi adicionada"
+              f" ao Drive.\r\nE-mail do cliente: {customer_email}"
+          ),
+          "color": int("16711680"),
+          "fields": [
+              {"name": "Código de Acesso", "value": license_key, "inline": True},
+              {"name": "Time", "value": "Agora mesmo", "inline": False},
+          ],
+      }],
+  }
+
+  try:
+    requests.post(webhook_url, json=payload)
+  except Exception as e:
+    print("Erro ao enviar Webhook:", e)
+
+
+def handler(request):
+  # Suporta tanto requisições do Vercel Request quanto objetos padrão
+  try:
+    if hasattr(request, "get_json"):
+      body = request.get_json()
+    else:
+      body = json.loads(request.data.decode("utf-8"))
+  except Exception:
+    return {"status": "error", "message": "Invalid payload"}, 400
+
+  event_type = body.get("type")
+
+  if event_type == "checkout.session.completed":
+    session = body.get("data", {}).get("object", {})
+    customer_email = session.get("customer_details", {}).get(
+        "email", "Cliente desconhecido"
+    )
+
+    drive_service = get_drive_service()
+
+    # 1. Baixar o Config.json atual do Google Drive
+    request_file = drive_service.files().get_media(fileId=CONFIG_FILE_ID)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request_file)
+    done = False
+    while not done:
+      status, done = downloader.next_chunk()
+
+    fh.seek(0)
+    config_data = json.load(fh)
+
+    # 2. Gerar a nova chave e adicionar no array "codigos_validos"
+    nova_chave = gerar_chave()
+    if "codigos_validos" not in config_data:
+      config_data["codigos_validos"] = []
+
+    config_data["codigos_validos"].append(nova_chave)
+
+    # 3. Salvar temporariamente e atualizar no Google Drive
+    temp_file_path = "/tmp/Config.json"
+    with open(temp_file_path, "w", encoding="utf-8") as f:
+      json.dump(config_data, f, ensure_ascii=False, indent=2)
+
+    media = MediaFileUpload(temp_file_path, mimetype="application/json")
+    drive_service.files().update(
+        fileId=CONFIG_FILE_ID, media_body=media
+    ).execute()
+
+    # 4. Enviar notificação para o Discord
+    enviar_webhook_discord(nova_chave, customer_email)
+
+    return {"status": "success", "license": nova_chave}, 200
+
+  return {"status": "ignored", "event": event_type}, 200
       "username": "Stripe License Bot",
       "content": "Novo pagamento processado com sucesso!",
       "embeds": [{
