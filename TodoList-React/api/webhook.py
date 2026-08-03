@@ -68,14 +68,14 @@ class handler(BaseHTTPRequestHandler):
             return
 
         # Trata o evento de pagamento concluído com sucesso
-        if event['type'] == 'checkout.session.completed':
-            session = event['data']['object']
+        if event.get('type') == 'checkout.session.completed':
+            session = event.get('data', {}).get('object', {})
             
-            # Acesso totalmente seguro aos atributos do objeto Stripe
-            customer_details = getattr(session, 'customer_details', None)
-            customer_email = customer_details.email if customer_details and hasattr(customer_details, 'email') else None
-            client_reference_id = getattr(session, 'client_reference_id', None)
-            session_id = getattr(session, 'id', None)
+            # Acesso seguro aos dados do dicionário retornado pelo Stripe
+            customer_details = session.get('customer_details') or {}
+            customer_email = customer_details.get('email')
+            client_reference_id = session.get('client_reference_id')
+            session_id = session.get('id')
 
             try:
                 # 1. Conecta ao Google Drive
