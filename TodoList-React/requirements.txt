@@ -1,3 +1,4 @@
 stripe
-google-auth
-google-api-python-client
+google-api-python-client==2.111.0
+google-auth==2.26.1
+requests==2.31.0
