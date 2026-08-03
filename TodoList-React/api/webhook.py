@@ -72,7 +72,7 @@ class handler(BaseHTTPRequestHandler):
             session = event['data']['object']
             
             # Você pode pegar o e-mail ou o cliente que comprou
-            customer_email = session.get('customer_details', {}).get('email')
+            customer_email = session.customer_details.email if session.customer_details else None
             client_reference_id = session.get('client_reference_id') # Caso passe ID do usuário na compra
 
             try:
