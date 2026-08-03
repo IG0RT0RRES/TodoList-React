@@ -1,39 +1,114 @@
 import os
 import json
-import io
-from http.server import BaseHTTPRequestHandler
-import stripe
+import random
+import string
+import requests
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
+import io
 
-# Configuração das chaves do Stripe
-stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
-endpoint_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
-
-# Configurações do Google Drive
-FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID")
+# Configurações do Google Drive (pegando das variáveis de ambiente da Vercel)
+SCOPES = ['https://www.googleapis.com/auth/drive']
+CONFIG_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID") # ID do Config.json no Drive
 
 def get_drive_service():
-    service_account_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"))
-    creds = service_account.Credentials.from_service_account_info(
-        service_account_info, scopes=['https://www.googleapis.com/auth/drive']
-    )
+    # Carrega as credenciais da conta de serviço a partir de uma variável de ambiente JSON
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+    creds_dict = json.loads(creds_json)
+    creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     return build('drive', 'v3', credentials=creds)
 
-def read_json_from_drive(service):
-    request = service.files().get_media(fileId=FILE_ID)
-    fh = io.BytesIO()
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        _, done = downloader.next_chunk()
-    fh.seek(0)
-    return json.loads(fh.read().decode('utf-8'))
+def gerar_chave():
+    # Gera uma chave alfanumérica única com pelo menos 8 caracteres (ex: BLUE3118 ou similar)
+    letras = ''.join(random.choices(string.ascii_uppercase, k=4))
+    numeros = ''.join(random.choices(string.digits, k=4))
+    return f"{letras}{numeros}"
 
-def write_json_to_drive(service, data):
-    json_str = json.dumps(data, indent=4)
-    fh = io.BytesIO(json_str.encode('utf-8'))
+def enviar_webhook_discord(license_key, customer_email):
+    webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
+    if not webhook_url:
+        return
+
+    payload = {
+        "username": "Stripe License Bot",
+        "content": "Novo pagamento processado com sucesso!",
+        "embeds": [{
+            "title": "Nova Licença Gerada",
+            "description": f"Um pagamento foi confirmado no Stripe e a chave foi adicionada ao Drive.\r\nE-mail do cliente: {customer_email}",
+            "color": int("16711680") if "16711680" else 0,
+            "fields": [
+                {
+                    "name": "Código de Acesso",
+                    "value": license_key,
+                    "inline": True
+                },
+                {
+                    "name": "Time",
+                    "value": "Agora mesmo",
+                    "inline": False
+                }
+            ]
+        }]
+    }
+
+    try:
+        requests.post(webhook_url, json=payload)
+    except Exception as e:
+        print("Erro ao enviar Webhook:", e)
+
+def handler(request):
+    # Aqui você validaria o evento do Stripe (ex: checkout.session.completed)
+    # Exemplo simplificado para pegar os dados da requisição POST do Stripe:
+    try:
+        body = request.get_json() if hasattr(request, 'get_json') else json.loads(request.data)
+    except:
+        return {"status": "error", "message": "Invalid payload"}, 400
+
+    event_type = body.get("type")
+    
+    # Verifica se o evento é de checkout concluído com sucesso
+    if event_type == "checkout.session.completed":
+        session = body.get("data", {}).get("object", {})
+        customer_email = session.get("customer_details", {}).get("email", "Cliente desconhecido")
+
+        drive_service = get_drive_service()
+
+        # 1. Baixar o Config.json atual do Google Drive
+        request_file = drive_service.files().get_media(fileId=CONFIG_FILE_ID)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request_file)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        
+        fh.seek(0)
+        config_data = json.load(fh)
+
+        # 2. Gerar a nova chave e adicionar no array "codigos_validos"
+        nova_chave = gerar_chave()
+        if "codigos_validos" not in config_data:
+            config_data["codigos_validos"] = []
+        
+        config_data["codigos_validos"].append(nova_chave)
+
+        # 3. Salvar o arquivo modificado temporariamente e enviar de volta para o Drive
+        temp_file_path = "/tmp/Config.json"
+        with open(temp_file_path, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, ensure_ascii=False, indent=2)
+
+        media = MediaFileUpload(temp_file_path, mimetype='application/json')
+        drive_service.files().update(
+            fileId=CONFIG_FILE_ID,
+            media_body=media
+        ).execute()
+
+        # 4. Disparar a notificação formatada para o Discord
+        enviar_webhook_discord(nova_chave, customer_email)
+
+        return {"status": "success", "license": nova_chave}, 200
+
+    return {"status": "ignored", "event": event_type}, 200
     media = MediaIoBaseUpload(fh, mimetype='application/json', resumable=True)
     service.files().update(
         fileId=FILE_ID,
