@@ -29,7 +29,7 @@ def gerar_chave():
 
 
 def enviar_webhook_discord(license_key, customer_email):
-  webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
+  webhook_url = os.environ.get("VITE_DISCORD_WEBHOOK_URL")
   if not webhook_url:
     return
 
