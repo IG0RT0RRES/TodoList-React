@@ -71,8 +71,9 @@ class handler(BaseHTTPRequestHandler):
         if event['type'] == 'checkout.session.completed':
             session = event['data']['object']
             
-            # Acesso seguro às propriedades do objeto Stripe usando notação de ponto
-            customer_email = session.customer_details.email if getattr(session, 'customer_details', None) and hasattr(session.customer_details, 'email') else None
+            # Acesso totalmente seguro aos atributos do objeto Stripe
+            customer_details = getattr(session, 'customer_details', None)
+            customer_email = customer_details.email if customer_details and hasattr(customer_details, 'email') else None
             client_reference_id = getattr(session, 'client_reference_id', None)
             session_id = getattr(session, 'id', None)
 
