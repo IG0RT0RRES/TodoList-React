@@ -67,15 +67,20 @@ class handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        # Trata o evento de pagamento concluído com sucesso
-        if event.get('type') == 'checkout.session.completed':
-            session = event.get('data', {}).get('object', {})
+        # Trata o evento de pagamento concluído com sucesso (usando chave/ponto em vez de .get())
+        event_type = event['type'] if isinstance(event, dict) else getattr(event, 'type', None)
+        
+        if event_type == 'checkout.session.completed':
+            session = event['data']['object'] if isinstance(event, dict) else event.data.object
             
-            # Acesso seguro aos dados do dicionário retornado pelo Stripe
-            customer_details = session.get('customer_details') or {}
-            customer_email = customer_details.get('email')
-            client_reference_id = session.get('client_reference_id')
-            session_id = session.get('id')
+            # Acesso seguro aos dados do objeto retornado pelo Stripe
+            customer_details = session.get('customer_details') if isinstance(session, dict) else getattr(session, 'customer_details', {})
+            if not customer_details:
+                customer_details = {}
+                
+            customer_email = customer_details.get('email') if isinstance(customer_details, dict) else getattr(customer_details, 'email', None)
+            client_reference_id = session.get('client_reference_id') if isinstance(session, dict) else getattr(session, 'client_reference_id', None)
+            session_id = session.get('id') if isinstance(session, dict) else getattr(session, 'id', None)
 
             try:
                 # 1. Conecta ao Google Drive
