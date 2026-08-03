@@ -14,7 +14,7 @@ CONFIG_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID")
 
 
 def get_drive_service():
-  creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+  creds_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
   creds_dict = json.loads(creds_json)
   creds = service_account.Credentials.from_service_account_info(
       creds_dict, scopes=SCOPES
