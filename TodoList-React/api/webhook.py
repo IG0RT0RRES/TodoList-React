@@ -71,9 +71,10 @@ class handler(BaseHTTPRequestHandler):
         if event['type'] == 'checkout.session.completed':
             session = event['data']['object']
             
-            # Você pode pegar o e-mail ou o cliente que comprou
-            customer_email = session.customer_details.email if session.customer_details else None
-            client_reference_id = session.get('client_reference_id') # Caso passe ID do usuário na compra
+            # Acesso seguro às propriedades do objeto Stripe usando notação de ponto
+            customer_email = session.customer_details.email if getattr(session, 'customer_details', None) and hasattr(session.customer_details, 'email') else None
+            client_reference_id = getattr(session, 'client_reference_id', None)
+            session_id = getattr(session, 'id', None)
 
             try:
                 # 1. Conecta ao Google Drive
@@ -82,15 +83,15 @@ class handler(BaseHTTPRequestHandler):
                 # 2. Lê o Config.json atual
                 config_data = read_json_from_drive(drive_service)
                 
-                # 3. Atualiza os dados (exemplo: adiciona a licença ou libera acesso)
-                # Ajuste a estrutura conforme o formato do seu Config.json
+                # 3. Atualiza os dados (adiciona a licença)
                 if "licenses" not in config_data:
                     config_data["licenses"] = []
                 
                 config_data["licenses"].append({
                     "email": customer_email,
+                    "client_reference_id": client_reference_id,
                     "status": "active",
-                    "session_id": session.get("id")
+                    "session_id": session_id
                 })
                 
                 # 4. Salva de volta no Google Drive
