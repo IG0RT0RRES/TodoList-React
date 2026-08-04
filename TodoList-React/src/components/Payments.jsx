@@ -57,10 +57,10 @@ export default function Payments() {
       <div style={styles.container}>
         <div style={styles.contentWrapper}>
           
-          {/* Banner Ilustrativo do App no Topo */}
+          {/* Banner Ilustrativo do App */}
           <div style={styles.bannerContainer}>
             <img 
-              src={Banner}
+              src={Banner} 
               alt="Automação de Baixas Simples e Rápida" 
               style={styles.bannerImage}
             />
@@ -71,6 +71,14 @@ export default function Payments() {
             <div style={styles.header}>
               <h2 style={styles.title}>Checkout de Pagamento</h2>
               <p style={styles.subtitle}>Preencha os campos abaixo para gerar o seu Pix instantâneo.</p>
+            </div>
+
+            {/* Box de Alerta */}
+            <div style={styles.alertBox}>
+              <span style={styles.alertIcon}>⚠️</span>
+              <p style={styles.alertText}>
+                <strong>Atenção:</strong> Insira seus dados corretos. A sua <strong>chave de acesso 🔑</strong> será enviada diretamente para o seu <strong>WhatsApp</strong> após a confirmação do pagamento.
+              </p>
             </div>
 
             {!pixData ? (
@@ -239,7 +247,7 @@ const styles = {
     boxSizing: 'border-box',
   },
   header: {
-    marginBottom: '20px',
+    marginBottom: '16px',
   },
   title: {
     fontSize: '20px',
@@ -250,6 +258,26 @@ const styles = {
   subtitle: {
     fontSize: '13px',
     color: '#9ca3af',
+  },
+  alertBox: {
+    backgroundColor: 'rgba(234, 179, 8, 0.1)',
+    border: '1px solid rgba(234, 179, 8, 0.3)',
+    borderRadius: '8px',
+    padding: '12px 14px',
+    marginBottom: '20px',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+  },
+  alertIcon: {
+    fontSize: '16px',
+    lineHeight: '1.4',
+  },
+  alertText: {
+    fontSize: '13px',
+    color: '#fef08a',
+    margin: 0,
+    lineHeight: '1.4',
   },
   form: {
     display: 'flex',
