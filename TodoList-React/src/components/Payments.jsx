@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import './Payments.css'; // Opcional, caso queira separar o CSS, mas vamos usar estilos inline/modernos por facilidade
 
 export default function Payments() {
   const [nome, setNome] = useState('');
@@ -47,40 +46,38 @@ export default function Payments() {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <span style={styles.badge}>Automação Segura</span>
           <h2 style={styles.title}>Baixa Forms Automação</h2>
-          <p style={styles.subtitle}>Preencha seus dados para gerar o Pix e liberar o seu acesso instantaneamente.</p>
+          <p style={styles.subtitle}>Preencha os campos abaixo para gerar o seu pagamento via Pix.</p>
         </div>
 
         {!pixData ? (
           <form onSubmit={handleGerarPix} style={styles.form}>
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Nome Completo</label>
+              <label style={styles.label}>Nome Completo:</label>
               <input 
                 type="text" 
                 value={nome} 
                 onChange={(e) => setNome(e.target.value)} 
-                placeholder="Ex: João da Silva"
+                placeholder="Seu nome completo"
                 required 
                 style={styles.input}
               />
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>WhatsApp (com DDD)</label>
+              <label style={styles.label}>WhatsApp (com DDD):</label>
               <input 
                 type="text" 
                 value={whatsapp} 
                 onChange={(e) => setWhatsapp(e.target.value)} 
-                placeholder="Ex: 5521999999999" 
+                placeholder="5521999999999" 
                 required 
                 style={styles.input}
               />
-              <span style={styles.hint}>Digite apenas números com DDI e DDD</span>
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>E-mail</label>
+              <label style={styles.label}>E-mail:</label>
               <input 
                 type="email" 
                 value={email} 
@@ -100,13 +97,15 @@ export default function Payments() {
                 cursor: loading ? 'not-allowed' : 'pointer'
               }}
             >
-              {loading ? 'Gerando Pagamento Pix...' : 'Gerar Pix de Pagamento'}
+              {loading ? 'Gerando Pix...' : 'Gerar Pix de Pagamento'}
             </button>
           </form>
         ) : (
           <div style={styles.successContainer}>
-            <div style={styles.successBadge}>Pix Gerado com Sucesso!</div>
-            <p style={styles.instruction}>Escaneie o QR Code abaixo com o aplicativo do seu banco ou utilize o código Copia e Cola:</p>
+            <h3 style={{ color: '#4ade80', marginBottom: '10px' }}>Pix Gerado com Sucesso!</h3>
+            <p style={{ fontSize: '14px', color: '#cbd5e1', marginBottom: '20px' }}>
+              Escaneie o QR Code ou utilize o código Copia e Cola abaixo:
+            </p>
             
             {pixData.qr_code_url && (
               <div style={styles.qrBox}>
@@ -114,7 +113,7 @@ export default function Payments() {
               </div>
             )}
 
-            <div style={styles.copyArea}>
+            <div style={styles.inputGroup}>
               <label style={styles.label}>Pix Copia e Cola:</label>
               <textarea 
                 readOnly 
@@ -122,21 +121,18 @@ export default function Payments() {
                 rows={3} 
                 style={styles.textarea}
               />
-              <button 
-                onClick={handleCopiar}
-                style={{
-                  ...styles.copyButton,
-                  backgroundColor: copiado ? '#10b981' : '#2563eb'
-                }}
-              >
-                {copiado ? '✓ Código Copiado!' : 'Copiar Código Pix'}
-              </button>
             </div>
 
-            <div style={styles.footerNote}>
-              <span style={styles.pulseDot}></span>
-              <span>Aguardando confirmação do pagamento. O acesso será enviado ao seu WhatsApp automaticamente.</span>
-            </div>
+            <button 
+              onClick={handleCopiar}
+              style={{
+                ...styles.button,
+                backgroundColor: copiado ? '#10b981' : '#2563eb',
+                marginTop: '15px'
+              }}
+            >
+              {copiado ? '✓ Código Copiado!' : 'Copiar Código Pix'}
+            </button>
           </div>
         )}
       </div>
@@ -144,93 +140,86 @@ export default function Payments() {
   );
 }
 
-// Estilos modernos em objetos para facilitar a aplicação direta sem arquivos extras
+// Estilos corporativos / limpos inspirados no layout de desktop
 const styles = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#0f172a',
+    backgroundColor: '#121212',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: '20px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    padding: '16px',
+    fontFamily: 'sans-serif',
   },
   card: {
-    backgroundColor: '#1e293b',
-    borderRadius: '16px',
-    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
+    backgroundColor: '#1e1e1e',
+    borderRadius: '12px',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
     width: '100%',
-    maxWidth: '480px',
-    padding: '32px',
-    border: '1px solid #334155',
-    color: '#f8fafc',
+    maxWidth: '440px',
+    padding: '28px',
+    border: '1px solid #2d2d2d',
+    color: '#ffffff',
   },
   header: {
-    textAlign: 'center',
-    marginBottom: '24px',
-  },
-  badge: {
-    backgroundColor: '#3b82f622',
-    color: '#60a5fa',
-    padding: '4px 12px',
-    borderRadius: '20px',
-    fontSize: '12px',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    marginBottom: '20px',
   },
   title: {
-    fontSize: '24px',
+    fontSize: '20px',
     fontWeight: 'bold',
-    marginTop: '12px',
-    marginBottom: '8px',
+    marginBottom: '6px',
     color: '#ffffff',
   },
   subtitle: {
-    fontSize: '14px',
-    color: '#94a3b8',
-    lineHeight: '1.5',
+    fontSize: '13px',
+    color: '#9ca3af',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px',
+    gap: '16px',
   },
   inputGroup: {
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
+    textAlign: 'left',
   },
   label: {
     fontSize: '13px',
     fontWeight: '500',
-    color: '#cbd5e1',
+    color: '#e5e7eb',
   },
   input: {
-    backgroundColor: '#0f172a',
-    border: '1px solid #475569',
-    borderRadius: '8px',
-    padding: '12px 14px',
+    backgroundColor: '#2a2a2a',
+    border: '1px solid #3f3f46',
+    borderRadius: '6px',
+    padding: '10px 12px',
     color: '#ffffff',
-    fontSize: '15px',
+    fontSize: '14px',
     outline: 'none',
-    transition: 'border-color 0.2s',
   },
-  hint: {
-    fontSize: '11px',
-    color: '#64748b',
+  textarea: {
+    backgroundColor: '#2a2a2a',
+    border: '1px solid #3f3f46',
+    borderRadius: '6px',
+    padding: '10px',
+    color: '#9ca3af',
+    fontSize: '12px',
+    resize: 'none',
+    outline: 'none',
   },
   button: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#6366f1',
     color: '#ffffff',
     border: 'none',
-    borderRadius: '8px',
-    padding: '14px',
-    fontSize: '16px',
+    borderRadius: '6px',
+    padding: '12px',
+    fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',
+    width: '100%',
     transition: 'background-color 0.2s',
-    marginTop: '10px',
   },
   successContainer: {
     display: 'flex',
@@ -238,78 +227,15 @@ const styles = {
     alignItems: 'center',
     textAlign: 'center',
   },
-  successBadge: {
-    backgroundColor: '#05966922',
-    color: '#34d399',
-    padding: '6px 16px',
-    borderRadius: '20px',
-    fontSize: '14px',
-    fontWeight: '600',
-    marginBottom: '16px',
-  },
-  instruction: {
-    fontSize: '14px',
-    color: '#cbd5e1',
-    marginBottom: '20px',
-    lineHeight: '1.5',
-  },
   qrBox: {
     backgroundColor: '#ffffff',
-    padding: '12px',
-    borderRadius: '12px',
-    marginBottom: '20px',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+    padding: '10px',
+    borderRadius: '8px',
+    marginBottom: '16px',
   },
   qrImage: {
-    width: '180px',
-    height: '180px',
+    width: '160px',
+    height: '160px',
     display: 'block',
-  },
-  copyArea: {
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-    textAlign: 'left',
-    marginBottom: '20px',
-  },
-  textarea: {
-    backgroundColor: '#0f172a',
-    border: '1px solid #475569',
-    borderRadius: '8px',
-    padding: '10px',
-    color: '#94a3b8',
-    fontSize: '12px',
-    resize: 'none',
-    outline: 'none',
-  },
-  copyButton: {
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '10px',
-    fontSize: '14px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'background-color 0.2s',
-  },
-  footerNote: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    backgroundColor: '#33415555',
-    padding: '10px 14px',
-    borderRadius: '8px',
-    fontSize: '12px',
-    color: '#94a3b8',
-    textAlign: 'left',
-  },
-  pulseDot: {
-    width: '8px',
-    height: '8px',
-    backgroundColor: '#f59e0b',
-    borderRadius: '50%',
-    display: 'inline-block',
-    boxShadow: '0 0 0 0 rgba(245, 158, 11, 0.7)',
   }
 };
