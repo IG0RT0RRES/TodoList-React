@@ -1,9 +1,10 @@
-const Stripe = require('stripe');
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export default async function handler(req, res) {
-  // CORS Headers (Garante permissão de chamada)
-  res.setHeader('Access-Control-Allow-Credentials', true);
+  // Configurações de CORS
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
@@ -27,11 +28,11 @@ export default async function handler(req, res) {
     const { nome, whatsapp, email } = req.body;
 
     if (!nome || !whatsapp || !email) {
-      return res.status(400).json({ error: 'Campos obrigatórios ausentes.' });
+      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
     }
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: 1000,
+      amount: 1000, // R$ 10,00
       currency: 'brl',
       payment_method_types: ['card', 'pix'],
       receipt_email: email,
@@ -54,7 +55,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Erro na Serverless Function:', error);
+    console.error('Erro no Stripe:', error);
     return res.status(500).json({ error: error.message || 'Erro interno no servidor' });
   }
-      }
+}
