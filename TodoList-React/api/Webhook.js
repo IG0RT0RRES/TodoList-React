@@ -46,7 +46,7 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
       `Sua chave de acesso continua a mesma: *${licenseKey}*\n` +
       `Nova validade da licença: *${dataValidadeFormatada}*\n\n` +
       `Seu acesso no aplicativo já foi reativado/estendido automaticamente.`
-    : `Olá, *${nome}*! Seu pagamento foi confirmado com sucesso. 🚀\n\n` +
+    : `Olá, *${nome}*! Seu pagamento foi confirmado e seu acesso foi liberado! 🚀\n\n` +
       `Sua chave de acesso ao *Gestor de Baixas* é: *${licenseKey}*\n` +
       `Validade da licença: *${dataValidadeFormatada}* (30 dias)\n\n` +
       `Guarde bem este código para realizar seus logins no aplicativo.`;
@@ -67,27 +67,27 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
   }
 }
 
-async function enviarWebhookDiscord(licenseKey, customerEmail, nome, whatsapp, dataAquisicao, dataValidade, isRenovacao) {
+async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao) {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
 
   const titulo = isRenovacao ? 'Licença Renovada (+30 Dias)' : 'Nova Licença Gerada (30 Dias)';
   const descricao = isRenovacao
     ? 'Um pagamento de renovação foi processado e a validade da chave existente foi estendida.'
-    : 'Um pagamento foi confirmado e os dados do novo comprador foram salvos no Drive.';
+    : 'Um novo colaborador foi cadastrado e os dados foram salvos no Drive.';
 
   const payload = {
     username: 'Stripe Pix Bot',
-    content: isRenovacao ? 'Renovação de licença concluída!' : 'Novo pagamento processado com sucesso!',
+    content: isRenovacao ? 'Renovação de licença concluída!' : 'Novo pagamento e acesso liberado!',
     embeds: [
       {
         title: titulo,
         description: descricao,
-        color: isRenovacao ? 3066993 : 16711680, // Verde para renovação, Vermelho/Laranja para nova
+        color: isRenovacao ? 3066993 : 16711680,
         fields: [
           { name: 'Código de Acesso', value: licenseKey, inline: true },
-          { name: 'Tipo', value: isRenovacao ? 'Renovação' : 'Nova Compra', inline: true },
-          { name: 'Usuário', value: nome, inline: false },
+          { name: 'Tipo', value: isRenovacao ? 'Renovação' : 'Novo Colaborador', inline: true },
+          { name: 'Colaborador', value: matriculaFormatada || nome, inline: false },
           { name: 'WhatsApp', value: whatsapp || 'Não informado', inline: true },
           { name: 'E-mail', value: customerEmail, inline: true },
           { name: 'Data da Operação', value: dataAquisicao, inline: true },
@@ -141,7 +141,11 @@ export default async function handler(req, res) {
       const metadata = objectData.metadata || {};
 
       const nome = metadata.nome || metadata.matricula_nome || 'Cliente';
+      const matricula = metadata.matricula || '';
       const whatsapp = metadata.whatsapp || '';
+
+      // Formata no padrão: "7000027 - IGOR TORRES E PADUA" (se a matrícula for informada)
+      const colaboradorFormatado = matricula ? `${matricula} - ${nome.toUpperCase()}` : nome.toUpperCase();
 
       let customerEmail = 'Cliente desconhecido';
       if (objectData.customer_details?.email) {
@@ -155,7 +159,7 @@ export default async function handler(req, res) {
       const fileId = process.env.GOOGLE_DRIVE_FILE_ID;
       const drive = getDriveService();
 
-      // 1. Obter o arquivo de configuração do Drive
+      // 1. Obter o arquivo do Drive
       const fileStream = await drive.files.get(
         { fileId, alt: 'media' },
         { responseType: 'text' }
@@ -165,17 +169,15 @@ export default async function handler(req, res) {
       try {
         configData = typeof fileStream.data === 'string' ? JSON.parse(fileStream.data) : fileStream.data;
       } catch (e) {
-        configData = { codigos_validos: [], licencas_detalhadas: [] };
+        configData = { codigos_validos: [], licencas_detalhadas: [], colaboradores: [] };
       }
 
-      if (!Array.isArray(configData.codigos_validos)) {
-        configData.codigos_validos = [];
-      }
-      if (!Array.isArray(configData.licencas_detalhadas)) {
-        configData.licencas_detalhadas = [];
-      }
+      // Garantir existência das listas
+      if (!Array.isArray(configData.codigos_validos)) configData.codigos_validos = [];
+      if (!Array.isArray(configData.licencas_detalhadas)) configData.licencas_detalhadas = [];
+      if (!Array.isArray(configData.colaboradores)) configData.colaboradores = [];
 
-      // 2. Verificar se o cliente já possui um cadastro (Renovação vs Nova Licença)
+      // 2. Verificar se o cliente já existe
       const clienteExistente = configData.licencas_detalhadas.find(
         (item) =>
           (whatsapp && item.whatsapp === whatsapp) ||
@@ -192,21 +194,17 @@ export default async function handler(req, res) {
         isRenovacao = true;
         chaveUso = clienteExistente.chave;
 
-        // Se a licença atual ainda não expirou, adiciona 30 dias a partir da data de validade atual.
-        // Se já expirou, adiciona 30 dias a partir de hoje.
         const dataValidadeAtual = new Date(clienteExistente.data_validade);
         const dataBase = dataValidadeAtual > agora ? dataValidadeAtual : agora;
 
         novaDataValidade = new Date(dataBase);
         novaDataValidade.setDate(novaDataValidade.getDate() + 30);
 
-        // Atualizar os campos do cliente existente
+        // Atualiza a validade
         clienteExistente.data_validade = novaDataValidade.toISOString();
         clienteExistente.data_validade_formatada = novaDataValidade.toLocaleDateString('pt-BR');
         clienteExistente.status = 'ativa';
-        clienteExistente.nome = nome || clienteExistente.nome;
 
-        // Garantir que a chave esteja presente no array de códigos válidos
         if (!configData.codigos_validos.includes(chaveUso)) {
           configData.codigos_validos.push(chaveUso);
         }
@@ -216,8 +214,16 @@ export default async function handler(req, res) {
         novaDataValidade.setDate(agora.getDate() + 30);
 
         configData.codigos_validos.push(chaveUso);
+
+        // Adiciona permanentemente à lista de colaboradores (se não estiver lá)
+        if (!configData.colaboradores.includes(colaboradorFormatado)) {
+          configData.colaboradores.push(colaboradorFormatado);
+        }
+
         configData.licencas_detalhadas.push({
           chave: chaveUso,
+          matricula,
+          colaborador: colaboradorFormatado,
           nome,
           email: customerEmail,
           whatsapp,
@@ -233,7 +239,7 @@ export default async function handler(req, res) {
       const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
 
-      // 3. Persistir as alterações no Google Drive
+      // 3. Salvar no Drive
       await drive.files.update({
         fileId,
         media: {
@@ -242,13 +248,14 @@ export default async function handler(req, res) {
         },
       });
 
-      // 4. Disparar Notificações (WhatsApp e Discord)
+      // 4. Notificações
       await Promise.all([
         enviarWhatsapp(whatsapp, nome, chaveUso, dataValidadeFormatada, isRenovacao),
         enviarWebhookDiscord(
           chaveUso,
           customerEmail,
           nome,
+          colaboradorFormatado,
           whatsapp,
           dataAquisicaoFormatada,
           dataValidadeFormatada,
@@ -258,7 +265,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         status: 'success',
-        tipo: isRenovacao ? 'renovacao' : 'nova_licenca',
+        tipo: isRenovacao ? 'renovacao' : 'novo_colaborador',
         license: chaveUso,
         valid_until: dataValidadeFormatada,
       });
@@ -269,5 +276,5 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ status: 'ignored', event: eventType });
-    }
+        }
     
