@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Banner from '../scr/img/banner.png';
+import Banner from '../img/banner.png';
 
 export default function Payments() {
   const [nome, setNome] = useState('');
