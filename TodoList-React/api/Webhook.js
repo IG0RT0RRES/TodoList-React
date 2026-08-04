@@ -7,11 +7,10 @@ const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 export const config = {
   api: {
-    bodyParser: false, // Desativa o parser do Vercel para permitir a verificação de assinatura da Stripe
+    bodyParser: false,
   },
 };
 
-// Configura o cliente do Google Drive
 function getDriveService() {
   const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!credsJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não definida.');
@@ -26,7 +25,6 @@ function getDriveService() {
   return google.drive({ version: 'v3', auth });
 }
 
-// Gera a chave alfanumérica (ex: ABCD1234)
 function gerarChave() {
   const letras = Array.from({ length: 4 }, () =>
     String.fromCharCode(65 + Math.floor(Math.random() * 26))
@@ -37,16 +35,16 @@ function gerarChave() {
   return `${letras}${numeros}`;
 }
 
-// Envia mensagem via WhatsApp
-async function enviarWhatsapp(whatsapp, nome, licenseKey) {
+async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada) {
   const whatsappApiUrl = process.env.WHATSAPP_API_URL;
   const whatsappToken = process.env.WHATSAPP_TOKEN;
 
   if (!whatsapp || !whatsappApiUrl) return;
 
   const mensagem =
-    `Olá, *${nome}*! Seu pagamento Pix foi confirmado com sucesso. 🚀\n\n` +
-    `Sua chave de acesso ao *Gestor de Baixas* é: *${licenseKey}*\n\n` +
+    `Olá, *${nome}*! Seu pagamento foi confirmado com sucesso. 🚀\n\n` +
+    `Sua chave de acesso ao *Gestor de Baixas* é: *${licenseKey}*\n` +
+    `Validade da licença: *${dataValidadeFormatada}* (30 dias)\n\n` +
     `Guarde bem este código para realizar seus logins.`;
 
   const headers = { 'Content-Type': 'application/json' };
@@ -65,25 +63,25 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey) {
   }
 }
 
-// Envia notificação para o Discord
-async function enviarWebhookDiscord(licenseKey, customerEmail, nome, whatsapp) {
+async function enviarWebhookDiscord(licenseKey, customerEmail, nome, whatsapp, dataAquisicao, dataValidade) {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
 
   const payload = {
     username: 'Stripe Pix Bot',
-    content: 'Novo pagamento Pix processado com sucesso!',
+    content: 'Novo pagamento processado com sucesso!',
     embeds: [
       {
-        title: 'Nova Licença Gerada via Pix',
-        description: 'Um pagamento via Pix foi confirmado e a chave foi adicionada ao Drive.',
+        title: 'Nova Licença Gerada (30 Dias)',
+        description: 'Um pagamento foi confirmado e os dados do comprador foram salvos no Drive.',
         color: 16711680,
         fields: [
           { name: 'Código de Acesso', value: licenseKey, inline: true },
           { name: 'Usuário', value: nome, inline: false },
           { name: 'WhatsApp', value: whatsapp || 'Não informado', inline: true },
           { name: 'E-mail', value: customerEmail, inline: true },
-          { name: 'Time', value: 'Agora mesmo', inline: false },
+          { name: 'Data de Aquisição', value: dataAquisicao, inline: true },
+          { name: 'Válido até', value: dataValidade, inline: true },
         ],
       },
     ],
@@ -102,7 +100,7 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, whatsapp) {
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
-    return res.status(200).json({ status: 'active', message: 'Webhook endpoint is running' });
+    return res.status(200).json({ status: 'active', message: 'Webhook endpoint running' });
   }
 
   if (req.method !== 'POST') {
@@ -132,7 +130,6 @@ export default async function handler(req, res) {
       const objectData = event.data.object;
       const metadata = objectData.metadata || {};
 
-      // Busca 'nome' ou 'matricula_nome' enviado no checkout/payment intent
       const nome = metadata.nome || metadata.matricula_nome || 'Cliente';
       const whatsapp = metadata.whatsapp || '';
 
@@ -148,7 +145,7 @@ export default async function handler(req, res) {
       const fileId = process.env.GOOGLE_DRIVE_FILE_ID;
       const drive = getDriveService();
 
-      // 1. Baixar o Config.json direto na memória (sem precisar gravar em /tmp/)
+      // 1. Obter o arquivo de configuração do Drive
       const fileStream = await drive.files.get(
         { fileId, alt: 'media' },
         { responseType: 'text' }
@@ -158,17 +155,48 @@ export default async function handler(req, res) {
       try {
         configData = typeof fileStream.data === 'string' ? JSON.parse(fileStream.data) : fileStream.data;
       } catch (e) {
-        configData = { codigos_validos: [] };
+        configData = { codigos_validos: [], licencas_detalhadas: [] };
       }
 
-      // 2. Gerar a nova chave
+      // 2. Gerar a chave e calcular as datas (30 dias)
       const novaChave = gerarChave();
+      
+      const agora = new Date();
+      const dataValidadeObj = new Date();
+      dataValidadeObj.setDate(agora.getDate() + 30);
+
+      const dataAquisicaoISO = agora.toISOString();
+      const dataValidadeISO = dataValidadeObj.toISOString();
+
+      const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
+      const dataValidadeFormatada = dataValidadeObj.toLocaleDateString('pt-BR');
+
+      // 3. Atualizar array simples e salvar objeto detalhado do comprador
       if (!Array.isArray(configData.codigos_validos)) {
         configData.codigos_validos = [];
       }
       configData.codigos_validos.push(novaChave);
 
-      // 3. Atualizar o arquivo no Google Drive
+      if (!Array.isArray(configData.licencas_detalhadas)) {
+        configData.licencas_detalhadas = [];
+      }
+
+      const registroComprador = {
+        chave: novaChave,
+        nome,
+        email: customerEmail,
+        whatsapp,
+        data_aquisicao: dataAquisicaoISO,
+        data_validade: dataValidadeISO,
+        data_aquisicao_formatada: dataAquisicaoFormatada,
+        data_validade_formatada: dataValidadeFormatada,
+        dias_validade: 30,
+        status: 'ativa'
+      };
+
+      configData.licencas_detalhadas.push(registroComprador);
+
+      // 4. Salvar no Google Drive
       await drive.files.update({
         fileId,
         media: {
@@ -177,13 +205,17 @@ export default async function handler(req, res) {
         },
       });
 
-      // 4. Disparar notificações assíncronas (WhatsApp e Discord)
+      // 5. Enviar notificações
       await Promise.all([
-        enviarWhatsapp(whatsapp, nome, novaChave),
-        enviarWebhookDiscord(novaChave, customerEmail, nome, whatsapp),
+        enviarWhatsapp(whatsapp, nome, novaChave, dataValidadeFormatada),
+        enviarWebhookDiscord(novaChave, customerEmail, nome, whatsapp, dataAquisicaoFormatada, dataValidadeFormatada),
       ]);
 
-      return res.status(200).json({ status: 'success', license: novaChave });
+      return res.status(200).json({
+        status: 'success',
+        license: novaChave,
+        valid_until: dataValidadeFormatada
+      });
     } catch (ex) {
       console.error('Erro no processamento do webhook:', ex);
       return res.status(500).json({ status: 'error', detalhe: ex.message });
@@ -191,5 +223,4 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ status: 'ignored', event: eventType });
-  }
-  
+    }
