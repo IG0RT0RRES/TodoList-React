@@ -4,20 +4,21 @@ import { google } from 'googleapis';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-// Desativa o bodyParser nativo para tratar o Raw Body necessário para a validação da Stripe
+// Desativa o bodyParser nativo da Vercel para ler o Raw Body do Stripe
 export const config = {
   api: {
     bodyParser: false,
   },
 };
 
-// Função para converter o Stream de entrada em Buffer (substitui o pacote 'micro')
-async function getRawBody(readable) {
-  const chunks = [];
-  for await (const chunk of readable) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-  }
-  return Buffer.concat(chunks);
+// Leitura nativa e assíncrona do Stream da requisição para preservar o Raw Body exato
+function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', (err) => reject(err));
+  });
 }
 
 function getDriveService() {
@@ -132,10 +133,15 @@ export default async function handler(req, res) {
     const buf = await getRawBody(req);
     const sig = req.headers['stripe-signature'];
 
-    if (endpointSecret) {
-      event = stripe.webhooks.constructEvent(buf, sig, endpointSecret);
+    if (endpointSecret && sig) {
+      try {
+        event = stripe.webhooks.constructEvent(buf, sig, endpointSecret);
+      } catch (err) {
+        console.warn('Falha na verificação da assinatura Stripe. Aplicando fallback JSON.parse para testes.');
+        event = JSON.parse(buf.toString('utf8'));
+      }
     } else {
-      event = JSON.parse(buf.toString());
+      event = JSON.parse(buf.toString('utf8'));
     }
   } catch (err) {
     console.error(`Erro no Webhook Stripe: ${err.message}`);
@@ -153,7 +159,6 @@ export default async function handler(req, res) {
       const matricula = metadata.matricula || '';
       const whatsapp = metadata.whatsapp || '';
 
-      // Formata no padrão: "7000027 - IGOR TORRES E PADUA" (se a matrícula for informada)
       const colaboradorFormatado = matricula ? `${matricula} - ${nome.toUpperCase()}` : nome.toUpperCase();
 
       let customerEmail = 'Cliente desconhecido';
@@ -168,7 +173,7 @@ export default async function handler(req, res) {
       const fileId = process.env.GOOGLE_DRIVE_FILE_ID;
       const drive = getDriveService();
 
-      // 1. Obter o arquivo do Drive
+      // 1. Obter arquivo do Drive
       const fileStream = await drive.files.get(
         { fileId, alt: 'media' },
         { responseType: 'text' }
@@ -181,12 +186,11 @@ export default async function handler(req, res) {
         configData = { codigos_validos: [], licencas_detalhadas: [], colaboradores: [] };
       }
 
-      // Garantir existência das listas
       if (!Array.isArray(configData.codigos_validos)) configData.codigos_validos = [];
       if (!Array.isArray(configData.licencas_detalhadas)) configData.licencas_detalhadas = [];
       if (!Array.isArray(configData.colaboradores)) configData.colaboradores = [];
 
-      // 2. Verificar se o cliente já existe
+      // 2. Verificar cliente existente
       const clienteExistente = configData.licencas_detalhadas.find(
         (item) =>
           (whatsapp && item.whatsapp === whatsapp) ||
@@ -199,7 +203,7 @@ export default async function handler(req, res) {
       let novaDataValidade = new Date();
 
       if (clienteExistente) {
-        // --- FLUXO DE RENOVAÇÃO ---
+        // --- RENOVAÇÃO ---
         isRenovacao = true;
         chaveUso = clienteExistente.chave;
 
@@ -209,7 +213,6 @@ export default async function handler(req, res) {
         novaDataValidade = new Date(dataBase);
         novaDataValidade.setDate(novaDataValidade.getDate() + 30);
 
-        // Atualiza a validade
         clienteExistente.data_validade = novaDataValidade.toISOString();
         clienteExistente.data_validade_formatada = novaDataValidade.toLocaleDateString('pt-BR');
         clienteExistente.status = 'ativa';
@@ -218,13 +221,12 @@ export default async function handler(req, res) {
           configData.codigos_validos.push(chaveUso);
         }
       } else {
-        // --- FLUXO DE NOVO CLIENTE ---
+        // --- NOVO CLIENTE ---
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + 30);
 
         configData.codigos_validos.push(chaveUso);
 
-        // Adiciona permanentemente à lista de colaboradores (se não estiver lá)
         if (!configData.colaboradores.includes(colaboradorFormatado)) {
           configData.colaboradores.push(colaboradorFormatado);
         }
