@@ -3,7 +3,6 @@ import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export default async function handler(req, res) {
-  // Configurações de CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -31,10 +30,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
     }
 
+    // Apenas 'card' para garantir que funcione durante a análise da conta
     const paymentIntent = await stripe.paymentIntents.create({
       amount: 1000, // R$ 10,00
       currency: 'brl',
-      payment_method_types: ['card', 'pix'],
+      payment_method_types: ['card'],
       receipt_email: email,
       metadata: { nome, whatsapp, email }
     });
@@ -46,6 +46,9 @@ export default async function handler(req, res) {
     if (nextAction && nextAction.pix_display_qr_code) {
       pixCopiaECola = nextAction.pix_display_qr_code.data;
       qrCodeUrl = nextAction.pix_display_qr_code.hosted_instructions_url;
+    } else {
+      // Retorno mockado/fictício de chave Pix para validar o front-end enquanto o Pix real fica retido pela análise
+      pixCopiaECola = '00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-426614174000520400005303986540510.005802BR5913Teste_Stripe6008BRASILIA62070503***6304E2CA';
     }
 
     return res.status(200).json({
