@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Banner from '../scr/img/banner.png';
 
 export default function Payments() {
   const [nome, setNome] = useState('');
@@ -59,7 +60,7 @@ export default function Payments() {
           {/* Banner Ilustrativo do App no Topo */}
           <div style={styles.bannerContainer}>
             <img 
-              src="img/banner.png" 
+              src={Banner}
               alt="Automação de Baixas Simples e Rápida" 
               style={styles.bannerImage}
             />
