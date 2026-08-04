@@ -44,7 +44,7 @@ export default function Payments() {
 
   return (
     <div style={styles.pageWrapper}>
-      {/* Barra superior para preencher o espaço vazio */}
+      {/* Top Navbar */}
       <header style={styles.topNavbar}>
         <div style={styles.navContent}>
           <span style={styles.navLogo}>⚡ Baixa Forms</span>
@@ -54,97 +54,111 @@ export default function Payments() {
 
       {/* Conteúdo Central */}
       <div style={styles.container}>
-        <div style={styles.card}>
-          <div style={styles.header}>
-            <h2 style={styles.title}>Checkout de Pagamento</h2>
-            <p style={styles.subtitle}>Preencha os campos abaixo para gerar o seu Pix instantâneo.</p>
+        <div style={styles.contentWrapper}>
+          
+          {/* Banner Ilustrativo do App no Topo */}
+          <div style={styles.bannerContainer}>
+            <img 
+              src="img/banner.png" 
+              alt="Automação de Baixas Simples e Rápida" 
+              style={styles.bannerImage}
+            />
           </div>
 
-          {!pixData ? (
-            <form onSubmit={handleGerarPix} style={styles.form}>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Nome Completo:</label>
-                <input 
-                  type="text" 
-                  value={nome} 
-                  onChange={(e) => setNome(e.target.value)} 
-                  placeholder="Seu nome completo"
-                  required 
-                  style={styles.input}
-                />
-              </div>
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>WhatsApp (com DDD):</label>
-                <input 
-                  type="text" 
-                  value={whatsapp} 
-                  onChange={(e) => setWhatsapp(e.target.value)} 
-                  placeholder="5521999999999" 
-                  required 
-                  style={styles.input}
-                />
-              </div>
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>E-mail:</label>
-                <input 
-                  type="email" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  placeholder="seu@email.com" 
-                  required 
-                  style={styles.input}
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={loading} 
-                style={{
-                  ...styles.button, 
-                  opacity: loading ? 0.7 : 1,
-                  cursor: loading ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {loading ? 'Gerando Pix...' : 'Gerar Pix de Pagamento'}
-              </button>
-            </form>
-          ) : (
-            <div style={styles.successContainer}>
-              <h3 style={{ color: '#4ade80', marginBottom: '10px' }}>Pix Gerado com Sucesso!</h3>
-              <p style={{ fontSize: '14px', color: '#cbd5e1', marginBottom: '20px' }}>
-                Escaneie o QR Code ou utilize o código Copia e Cola abaixo:
-              </p>
-              
-              {pixData.qr_code_url && (
-                <div style={styles.qrBox}>
-                  <img src={pixData.qr_code_url} alt="QR Code Pix" style={styles.qrImage} />
-                </div>
-              )}
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Pix Copia e Cola:</label>
-                <textarea 
-                  readOnly 
-                  value={pixData.pix_copia_e_cola} 
-                  rows={3} 
-                  style={styles.textarea}
-                />
-              </div>
-
-              <button 
-                onClick={handleCopiar}
-                style={{
-                  ...styles.button,
-                  backgroundColor: copiado ? '#10b981' : '#2563eb',
-                  marginTop: '15px'
-                }}
-              >
-                {copiado ? '✓ Código Copiado!' : 'Copiar Código Pix'}
-              </button>
+          {/* Card de Checkout */}
+          <div style={styles.card}>
+            <div style={styles.header}>
+              <h2 style={styles.title}>Checkout de Pagamento</h2>
+              <p style={styles.subtitle}>Preencha os campos abaixo para gerar o seu Pix instantâneo.</p>
             </div>
-          )}
+
+            {!pixData ? (
+              <form onSubmit={handleGerarPix} style={styles.form}>
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>Nome Completo:</label>
+                  <input 
+                    type="text" 
+                    value={nome} 
+                    onChange={(e) => setNome(e.target.value)} 
+                    placeholder="Seu nome completo"
+                    required 
+                    style={styles.input}
+                  />
+                </div>
+
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>WhatsApp (com DDD):</label>
+                  <input 
+                    type="text" 
+                    value={whatsapp} 
+                    onChange={(e) => setWhatsapp(e.target.value)} 
+                    placeholder="5521999999999" 
+                    required 
+                    style={styles.input}
+                  />
+                </div>
+
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>E-mail:</label>
+                  <input 
+                    type="email" 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)} 
+                    placeholder="seu@email.com" 
+                    required 
+                    style={styles.input}
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={loading} 
+                  style={{
+                    ...styles.button, 
+                    opacity: loading ? 0.7 : 1,
+                    cursor: loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {loading ? 'Gerando Pix...' : 'Gerar Pix de Pagamento'}
+                </button>
+              </form>
+            ) : (
+              <div style={styles.successContainer}>
+                <h3 style={{ color: '#4ade80', marginBottom: '10px' }}>Pix Gerado com Sucesso!</h3>
+                <p style={{ fontSize: '14px', color: '#cbd5e1', marginBottom: '20px' }}>
+                  Escaneie o QR Code ou utilize o código Copia e Cola abaixo:
+                </p>
+                
+                {pixData.qr_code_url && (
+                  <div style={styles.qrBox}>
+                    <img src={pixData.qr_code_url} alt="QR Code Pix" style={styles.qrImage} />
+                  </div>
+                )}
+
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>Pix Copia e Cola:</label>
+                  <textarea 
+                    readOnly 
+                    value={pixData.pix_copia_e_cola} 
+                    rows={3} 
+                    style={styles.textarea}
+                  />
+                </div>
+
+                <button 
+                  onClick={handleCopiar}
+                  style={{
+                    ...styles.button,
+                    backgroundColor: copiado ? '#10b981' : '#2563eb',
+                    marginTop: '15px'
+                  }}
+                >
+                  {copiado ? '✓ Código Copiado!' : 'Copiar Código Pix'}
+                </button>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
     </div>
@@ -193,15 +207,35 @@ const styles = {
     alignItems: 'center',
     padding: '24px 16px',
   },
+  contentWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '24px',
+    width: '100%',
+    maxWidth: '480px',
+  },
+  bannerContainer: {
+    width: '100%',
+    borderRadius: '12px',
+    overflow: 'hidden',
+    border: '1px solid #2d2d2d',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+  },
+  bannerImage: {
+    width: '100%',
+    height: 'auto',
+    display: 'block',
+  },
   card: {
     backgroundColor: '#1e1e1e',
     borderRadius: '12px',
     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
     width: '100%',
-    maxWidth: '440px',
     padding: '28px',
     border: '1px solid #2d2d2d',
     color: '#ffffff',
+    boxSizing: 'border-box',
   },
   header: {
     marginBottom: '20px',
@@ -281,4 +315,3 @@ const styles = {
     display: 'block',
   }
 };
-  
