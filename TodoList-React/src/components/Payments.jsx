@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Banner from '../img/banner.png';
 
 export default function Payments() {
+  const [matricula, setMatricula] = useState('');
   const [nome, setNome] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [email, setEmail] = useState('');
@@ -17,7 +18,7 @@ export default function Payments() {
       const response = await fetch('/api/criar-pix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, whatsapp, email })
+        body: JSON.stringify({ matricula, nome, whatsapp, email })
       });
 
       const data = await response.json();
@@ -83,6 +84,18 @@ export default function Payments() {
 
             {!pixData ? (
               <form onSubmit={handleGerarPix} style={styles.form}>
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>Matrícula do Colaborador:</label>
+                  <input 
+                    type="text" 
+                    value={matricula} 
+                    onChange={(e) => setMatricula(e.target.value)} 
+                    placeholder="Ex: 7000027"
+                    required 
+                    style={styles.input}
+                  />
+                </div>
+
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>Nome Completo:</label>
                   <input 
