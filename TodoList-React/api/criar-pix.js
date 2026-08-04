@@ -24,19 +24,26 @@ export default async function handler(req, res) {
       throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
-    const { nome, whatsapp, email } = req.body;
+    // 1. Desestruturação incluindo 'matricula'
+    const { matricula, nome, whatsapp, email } = req.body;
 
-    if (!nome || !whatsapp || !email) {
-      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
+    // 2. Validação dos campos obrigatórios
+    if (!matricula || !nome || !whatsapp || !email) {
+      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios (incluindo a matrícula).' });
     }
 
-    // Apenas 'card' para garantir que funcione durante a análise da conta
+    // 3. Criação do PaymentIntent repassando a matrícula nos metadados
     const paymentIntent = await stripe.paymentIntents.create({
       amount: 1000, // R$ 10,00
       currency: 'brl',
       payment_method_types: ['card'],
       receipt_email: email,
-      metadata: { nome, whatsapp, email }
+      metadata: { 
+        matricula, 
+        nome, 
+        whatsapp, 
+        email 
+      }
     });
 
     const nextAction = paymentIntent.next_action;
@@ -47,7 +54,7 @@ export default async function handler(req, res) {
       pixCopiaECola = nextAction.pix_display_qr_code.data;
       qrCodeUrl = nextAction.pix_display_qr_code.hosted_instructions_url;
     } else {
-      // Retorno mockado/fictício de chave Pix para validar o front-end enquanto o Pix real fica retido pela análise
+      // Retorno mockado/fictício de chave Pix para validar o front-end durante a análise da conta Stripe
       pixCopiaECola = '00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-426614174000520400005303986540510.005802BR5913Teste_Stripe6008BRASILIA62070503***6304E2CA';
     }
 
