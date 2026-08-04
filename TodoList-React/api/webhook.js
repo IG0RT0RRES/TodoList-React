@@ -1,15 +1,24 @@
-import { buffer } from 'micro';
 import Stripe from 'stripe';
 import { google } from 'googleapis';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
+// Desativa o bodyParser nativo para tratar o Raw Body necessário para a validação da Stripe
 export const config = {
   api: {
     bodyParser: false,
   },
 };
+
+// Função para converter o Stream de entrada em Buffer (substitui o pacote 'micro')
+async function getRawBody(readable) {
+  const chunks = [];
+  for await (const chunk of readable) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks);
+}
 
 function getDriveService() {
   const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -117,12 +126,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  const buf = await buffer(req);
-  const sig = req.headers['stripe-signature'];
-
   let event;
 
   try {
+    const buf = await getRawBody(req);
+    const sig = req.headers['stripe-signature'];
+
     if (endpointSecret) {
       event = stripe.webhooks.constructEvent(buf, sig, endpointSecret);
     } else {
@@ -276,5 +285,4 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ status: 'ignored', event: eventType });
-        }
-    
+}
