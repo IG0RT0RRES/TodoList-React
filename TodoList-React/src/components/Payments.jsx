@@ -93,7 +93,7 @@ export default function Payments() {
                     type="text" 
                     value={whatsapp} 
                     onChange={(e) => setWhatsapp(e.target.value)} 
-                    placeholder="5521999999999" 
+                    placeholder="(+55)2199999-9999" 
                     required 
                     style={styles.input}
                   />
