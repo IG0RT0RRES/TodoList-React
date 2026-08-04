@@ -1,29 +1,41 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const Stripe = require('stripe');
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 export default async function handler(req, res) {
+  // CORS Headers (Garante permissão de chamada)
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
   try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
+    }
+
     const { nome, whatsapp, email } = req.body;
 
     if (!nome || !whatsapp || !email) {
-      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
+      return res.status(400).json({ error: 'Campos obrigatórios ausentes.' });
     }
 
-    // Permitindo 'card' e 'pix' para permitir testes imediatos
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: 1000, // R$ 10,00 em centavos
+      amount: 1000,
       currency: 'brl',
       payment_method_types: ['card', 'pix'],
       receipt_email: email,
-      metadata: {
-        nome,
-        whatsapp,
-        email
-      }
+      metadata: { nome, whatsapp, email }
     });
 
     const nextAction = paymentIntent.next_action;
@@ -32,7 +44,7 @@ export default async function handler(req, res) {
 
     if (nextAction && nextAction.pix_display_qr_code) {
       pixCopiaECola = nextAction.pix_display_qr_code.data;
-      qrCodeUrl = nextAction.pix_display_qr_code.hosted_instructions_url; 
+      qrCodeUrl = nextAction.pix_display_qr_code.hosted_instructions_url;
     }
 
     return res.status(200).json({
@@ -42,7 +54,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Erro no Stripe:', error.message);
-    return res.status(500).json({ error: error.message });
+    console.error('Erro na Serverless Function:', error);
+    return res.status(500).json({ error: error.message || 'Erro interno no servidor' });
   }
-}
+      }
