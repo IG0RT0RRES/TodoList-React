@@ -46,34 +46,50 @@ function gerarChave() {
 }
 
 async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada, isRenovacao) {
-  const whatsappApiUrl = process.env.WHATSAPP_API_URL;
-  const whatsappToken = process.env.WHATSAPP_TOKEN;
+  const token = process.env.META_ACCESS_TOKEN;
+  const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
 
-  if (!whatsapp || !whatsappApiUrl) return;
-
-  const mensagem = isRenovacao
-    ? `Olá, *${nome}*! Sua assinatura foi *renovada* com sucesso! 🔄\n\n` +
-      `Sua chave de acesso continua a mesma: *${licenseKey}*\n` +
-      `Nova validade da licença: *${dataValidadeFormatada}*\n\n` +
-      `Seu acesso no aplicativo já foi reativado/estendido automaticamente.`
-    : `Olá, *${nome}*! Seu pagamento foi confirmado e seu acesso foi liberado! 🚀\n\n` +
-      `Sua chave de acesso ao *Gestor de Baixas* é: *${licenseKey}*\n` +
-      `Validade da licença: *${dataValidadeFormatada}* (30 dias)\n\n` +
-      `Guarde bem este código para realizar seus logins no aplicativo.`;
-
-  const headers = { 'Content-Type': 'application/json' };
-  if (whatsappToken) {
-    headers['Authorization'] = `Bearer ${whatsappToken}`;
+  if (!whatsapp || !token || !phoneNumberId) {
+    console.warn('WhatsApp não enviado: META_ACCESS_TOKEN, META_PHONE_NUMBER_ID ou telefone ausente.');
+    return;
   }
 
+  // Monta a URL da Meta Cloud API com a versão e o ID do número
+  const whatsappApiUrl = `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`;
+
+  // Sanitização do número: remove qualquer caractere que não seja dígito
+  const numeroFormatado = whatsapp.replace(/\D/g, '');
+
+  // Payload de Template oficial da Meta para testes e contatos ativos
+  const payloadMeta = {
+    messaging_product: 'whatsapp',
+    to: numeroFormatado,
+    type: 'template',
+    template: {
+      name: 'hello_world',
+      language: { code: 'en_US' }
+    }
+  };
+
   try {
-    await fetch(whatsappApiUrl, {
+    const response = await fetch(whatsappApiUrl, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({ phone: whatsapp, message: mensagem }),
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payloadMeta),
     });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('Erro retornado pela Meta WhatsApp API:', JSON.stringify(result, null, 2));
+    } else {
+      console.log('Mensagem WhatsApp enviada com sucesso via Meta API:', result);
+    }
   } catch (error) {
-    console.error('Erro ao enviar WhatsApp:', error);
+    console.error('Erro na requisição para Meta WhatsApp API:', error);
   }
 }
 
