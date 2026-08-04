@@ -13,11 +13,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
     }
 
-    // Criação do PaymentIntent configurado para Pix
+    // Permitindo 'card' e 'pix' para permitir testes imediatos
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: 1000, // Exemplo: R$ 10,00 (ajuste o valor em centavos conforme necessário)
+      amount: 1000, // R$ 10,00 em centavos
       currency: 'brl',
-      payment_method_types: ['pix'],
+      payment_method_types: ['card', 'pix'],
       receipt_email: email,
       metadata: {
         nome,
@@ -26,7 +26,6 @@ export default async function handler(req, res) {
       }
     });
 
-    // Extração dos dados do Pix gerados pelo Stripe
     const nextAction = paymentIntent.next_action;
     let pixCopiaECola = null;
     let qrCodeUrl = null;
@@ -34,7 +33,6 @@ export default async function handler(req, res) {
     if (nextAction && nextAction.pix_display_qr_code) {
       pixCopiaECola = nextAction.pix_display_qr_code.data;
       qrCodeUrl = nextAction.pix_display_qr_code.hosted_instructions_url; 
-      // Nota: O Stripe também fornece o SVG do QR code se preferir renderizar direto
     }
 
     return res.status(200).json({
@@ -44,7 +42,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Erro ao gerar Pix no Stripe:', error.message);
+    console.error('Erro no Stripe:', error.message);
     return res.status(500).json({ error: error.message });
   }
 }
