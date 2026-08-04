@@ -35,17 +35,21 @@ function gerarChave() {
   return `${letras}${numeros}`;
 }
 
-async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada) {
+async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada, isRenovacao) {
   const whatsappApiUrl = process.env.WHATSAPP_API_URL;
   const whatsappToken = process.env.WHATSAPP_TOKEN;
 
   if (!whatsapp || !whatsappApiUrl) return;
 
-  const mensagem =
-    `Olá, *${nome}*! Seu pagamento foi confirmado com sucesso. 🚀\n\n` +
-    `Sua chave de acesso ao *Gestor de Baixas* é: *${licenseKey}*\n` +
-    `Validade da licença: *${dataValidadeFormatada}* (30 dias)\n\n` +
-    `Guarde bem este código para realizar seus logins.`;
+  const mensagem = isRenovacao
+    ? `Olá, *${nome}*! Sua assinatura foi *renovada* com sucesso! 🔄\n\n` +
+      `Sua chave de acesso continua a mesma: *${licenseKey}*\n` +
+      `Nova validade da licença: *${dataValidadeFormatada}*\n\n` +
+      `Seu acesso no aplicativo já foi reativado/estendido automaticamente.`
+    : `Olá, *${nome}*! Seu pagamento foi confirmado com sucesso. 🚀\n\n` +
+      `Sua chave de acesso ao *Gestor de Baixas* é: *${licenseKey}*\n` +
+      `Validade da licença: *${dataValidadeFormatada}* (30 dias)\n\n` +
+      `Guarde bem este código para realizar seus logins no aplicativo.`;
 
   const headers = { 'Content-Type': 'application/json' };
   if (whatsappToken) {
@@ -63,24 +67,30 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada)
   }
 }
 
-async function enviarWebhookDiscord(licenseKey, customerEmail, nome, whatsapp, dataAquisicao, dataValidade) {
+async function enviarWebhookDiscord(licenseKey, customerEmail, nome, whatsapp, dataAquisicao, dataValidade, isRenovacao) {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
 
+  const titulo = isRenovacao ? 'Licença Renovada (+30 Dias)' : 'Nova Licença Gerada (30 Dias)';
+  const descricao = isRenovacao
+    ? 'Um pagamento de renovação foi processado e a validade da chave existente foi estendida.'
+    : 'Um pagamento foi confirmado e os dados do novo comprador foram salvos no Drive.';
+
   const payload = {
     username: 'Stripe Pix Bot',
-    content: 'Novo pagamento processado com sucesso!',
+    content: isRenovacao ? 'Renovação de licença concluída!' : 'Novo pagamento processado com sucesso!',
     embeds: [
       {
-        title: 'Nova Licença Gerada (30 Dias)',
-        description: 'Um pagamento foi confirmado e os dados do comprador foram salvos no Drive.',
-        color: 16711680,
+        title: titulo,
+        description: descricao,
+        color: isRenovacao ? 3066993 : 16711680, // Verde para renovação, Vermelho/Laranja para nova
         fields: [
           { name: 'Código de Acesso', value: licenseKey, inline: true },
+          { name: 'Tipo', value: isRenovacao ? 'Renovação' : 'Nova Compra', inline: true },
           { name: 'Usuário', value: nome, inline: false },
           { name: 'WhatsApp', value: whatsapp || 'Não informado', inline: true },
           { name: 'E-mail', value: customerEmail, inline: true },
-          { name: 'Data de Aquisição', value: dataAquisicao, inline: true },
+          { name: 'Data da Operação', value: dataAquisicao, inline: true },
           { name: 'Válido até', value: dataValidade, inline: true },
         ],
       },
@@ -158,45 +168,72 @@ export default async function handler(req, res) {
         configData = { codigos_validos: [], licencas_detalhadas: [] };
       }
 
-      // 2. Gerar a chave e calcular as datas (30 dias)
-      const novaChave = gerarChave();
-      
-      const agora = new Date();
-      const dataValidadeObj = new Date();
-      dataValidadeObj.setDate(agora.getDate() + 30);
-
-      const dataAquisicaoISO = agora.toISOString();
-      const dataValidadeISO = dataValidadeObj.toISOString();
-
-      const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
-      const dataValidadeFormatada = dataValidadeObj.toLocaleDateString('pt-BR');
-
-      // 3. Atualizar array simples e salvar objeto detalhado do comprador
       if (!Array.isArray(configData.codigos_validos)) {
         configData.codigos_validos = [];
       }
-      configData.codigos_validos.push(novaChave);
-
       if (!Array.isArray(configData.licencas_detalhadas)) {
         configData.licencas_detalhadas = [];
       }
 
-      const registroComprador = {
-        chave: novaChave,
-        nome,
-        email: customerEmail,
-        whatsapp,
-        data_aquisicao: dataAquisicaoISO,
-        data_validade: dataValidadeISO,
-        data_aquisicao_formatada: dataAquisicaoFormatada,
-        data_validade_formatada: dataValidadeFormatada,
-        dias_validade: 30,
-        status: 'ativa'
-      };
+      // 2. Verificar se o cliente já possui um cadastro (Renovação vs Nova Licença)
+      const clienteExistente = configData.licencas_detalhadas.find(
+        (item) =>
+          (whatsapp && item.whatsapp === whatsapp) ||
+          (customerEmail && customerEmail !== 'Cliente desconhecido' && item.email === customerEmail)
+      );
 
-      configData.licencas_detalhadas.push(registroComprador);
+      let chaveUso = '';
+      let isRenovacao = false;
+      const agora = new Date();
+      let novaDataValidade = new Date();
 
-      // 4. Salvar no Google Drive
+      if (clienteExistente) {
+        // --- FLUXO DE RENOVAÇÃO ---
+        isRenovacao = true;
+        chaveUso = clienteExistente.chave;
+
+        // Se a licença atual ainda não expirou, adiciona 30 dias a partir da data de validade atual.
+        // Se já expirou, adiciona 30 dias a partir de hoje.
+        const dataValidadeAtual = new Date(clienteExistente.data_validade);
+        const dataBase = dataValidadeAtual > agora ? dataValidadeAtual : agora;
+
+        novaDataValidade = new Date(dataBase);
+        novaDataValidade.setDate(novaDataValidade.getDate() + 30);
+
+        // Atualizar os campos do cliente existente
+        clienteExistente.data_validade = novaDataValidade.toISOString();
+        clienteExistente.data_validade_formatada = novaDataValidade.toLocaleDateString('pt-BR');
+        clienteExistente.status = 'ativa';
+        clienteExistente.nome = nome || clienteExistente.nome;
+
+        // Garantir que a chave esteja presente no array de códigos válidos
+        if (!configData.codigos_validos.includes(chaveUso)) {
+          configData.codigos_validos.push(chaveUso);
+        }
+      } else {
+        // --- FLUXO DE NOVO CLIENTE ---
+        chaveUso = gerarChave();
+        novaDataValidade.setDate(agora.getDate() + 30);
+
+        configData.codigos_validos.push(chaveUso);
+        configData.licencas_detalhadas.push({
+          chave: chaveUso,
+          nome,
+          email: customerEmail,
+          whatsapp,
+          data_aquisicao: agora.toISOString(),
+          data_validade: novaDataValidade.toISOString(),
+          data_aquisicao_formatada: agora.toLocaleDateString('pt-BR'),
+          data_validade_formatada: novaDataValidade.toLocaleDateString('pt-BR'),
+          dias_validade: 30,
+          status: 'ativa',
+        });
+      }
+
+      const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
+      const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
+
+      // 3. Persistir as alterações no Google Drive
       await drive.files.update({
         fileId,
         media: {
@@ -205,16 +242,25 @@ export default async function handler(req, res) {
         },
       });
 
-      // 5. Enviar notificações
+      // 4. Disparar Notificações (WhatsApp e Discord)
       await Promise.all([
-        enviarWhatsapp(whatsapp, nome, novaChave, dataValidadeFormatada),
-        enviarWebhookDiscord(novaChave, customerEmail, nome, whatsapp, dataAquisicaoFormatada, dataValidadeFormatada),
+        enviarWhatsapp(whatsapp, nome, chaveUso, dataValidadeFormatada, isRenovacao),
+        enviarWebhookDiscord(
+          chaveUso,
+          customerEmail,
+          nome,
+          whatsapp,
+          dataAquisicaoFormatada,
+          dataValidadeFormatada,
+          isRenovacao
+        ),
       ]);
 
       return res.status(200).json({
         status: 'success',
-        license: novaChave,
-        valid_until: dataValidadeFormatada
+        tipo: isRenovacao ? 'renovacao' : 'nova_licenca',
+        license: chaveUso,
+        valid_until: dataValidadeFormatada,
       });
     } catch (ex) {
       console.error('Erro no processamento do webhook:', ex);
@@ -224,3 +270,4 @@ export default async function handler(req, res) {
 
   return res.status(200).json({ status: 'ignored', event: eventType });
     }
+    
