@@ -54,20 +54,28 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
     return;
   }
 
-  // Monta a URL da Meta Cloud API com a versão e o ID do número
   const whatsappApiUrl = `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`;
-
-  // Sanitização do número: remove qualquer caractere que não seja dígito
   const numeroFormatado = whatsapp.replace(/\D/g, '');
 
-  // Payload de Template oficial da Meta para testes e contatos ativos
+  // Payload formatado para o template personalizado (Ex: envio_licenca)
+  // Certifique-se de que o nome do template no painel da Meta coincida com o campo 'name'
   const payloadMeta = {
     messaging_product: 'whatsapp',
     to: numeroFormatado,
     type: 'template',
     template: {
-      name: 'hello_world',
-      language: { code: 'en_US' }
+      name: 'envio_licenca',
+      language: { code: 'pt_BR' },
+      components: [
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: nome },
+            { type: 'text', text: licenseKey },
+            { type: 'text', text: dataValidadeFormatada }
+          ]
+        }
+      ]
     }
   };
 
@@ -225,12 +233,11 @@ export default async function handler(req, res) {
 
         const dataValidadeAtual = new Date(clienteExistente.data_validade);
 
-        // SE FOR LICENÇA VITALÍCIA / ADMIN (Ano superior a 2099)
+        // Trava para licenças administrativas/vitalícias (ano >= 2099)
         if (dataValidadeAtual.getFullYear() >= 2099) {
           novaDataValidade = dataValidadeAtual;
           clienteExistente.status = 'ativa';
         } else {
-          // Licença comum: soma 30 dias a partir da data atual de validade ou de hoje
           const dataBase = dataValidadeAtual > agora ? dataValidadeAtual : agora;
           novaDataValidade = new Date(dataBase);
           novaDataValidade.setDate(novaDataValidade.getDate() + 30);
