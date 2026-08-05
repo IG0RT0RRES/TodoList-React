@@ -24,17 +24,15 @@ export default async function handler(req, res) {
       throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
-    // 1. Desestruturação dos campos
     const { matricula, nome, whatsapp, email } = req.body;
 
-    // 2. Validação dos campos obrigatórios
     if (!matricula || !nome || !whatsapp || !email) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios (incluindo a matrícula).' });
     }
 
-    // 3. Criação do PaymentIntent PIX de forma confirmada na Stripe
+    // Criação do PaymentIntent para Pix
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: 1000, // R$ 10,00
+      amount: 1000, // R$ 10,00 (valor em centavos)
       currency: 'brl',
       payment_method_types: ['pix'],
       payment_method_data: {
@@ -68,6 +66,8 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Erro no Stripe:', error);
-    return res.status(500).json({ error: error.message || 'Erro interno no servidor' });
+    return res.status(500).json({ 
+      error: error.message || 'Erro interno no servidor ao processar o Pix.' 
+    });
   }
 }
