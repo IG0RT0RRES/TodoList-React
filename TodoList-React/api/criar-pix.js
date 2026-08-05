@@ -27,47 +27,44 @@ export default async function handler(req, res) {
     const { matricula, nome, whatsapp, email } = req.body;
 
     if (!matricula || !nome || !whatsapp || !email) {
-      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios (incluindo a matrícula).' });
+      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
     }
 
-    // Criação do PaymentIntent para Pix
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: 1000, // R$ 10,00 (valor em centavos)
-      currency: 'brl',
-      payment_method_types: ['pix'],
-      payment_method_data: {
-        type: 'pix',
-        billing_details: {
-          name: nome,
-          email: email,
+    // Criação da Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card', 'boleto'], // Adicione outros métodos se ativados no Dashboard
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: 'Licença de Acesso - Gestor de Baixas',
+              description: `Ativação para a matrícula ${matricula}`,
+            },
+            unit_amount: 1000, // R$ 10,00 em centavos
+          },
+          quantity: 1,
         },
+      ],
+      mode: 'payment',
+      customer_email: email,
+      // URLs para redirecionamento após o pagamento
+      success_url: 'https://checkout.stripe.dev/success',
+      cancel_url: 'https://checkout.stripe.dev/cancel',
+      metadata: {
+        matricula,
+        nome,
+        whatsapp,
+        email,
       },
-      confirm: true,
-      receipt_email: email,
-      metadata: { 
-        matricula, 
-        nome, 
-        whatsapp, 
-        email 
-      }
     });
 
-    const nextAction = paymentIntent.next_action;
-    let pixCopiaECola = null;
-
-    if (nextAction && nextAction.pix_display_qr_code) {
-      pixCopiaECola = nextAction.pix_display_qr_code.data;
-    }
-
     return res.status(200).json({
-      client_secret: paymentIntent.client_secret,
-      pix_copia_e_cola: pixCopiaECola
+      checkout_url: session.url
     });
 
   } catch (error) {
-    console.error('Erro no Stripe:', error);
-    return res.status(500).json({ 
-      error: error.message || 'Erro interno no servidor ao processar o Pix.' 
-    });
+    console.error('Erro no Stripe Checkout:', error);
+    return res.status(500).json({ error: error.message || 'Erro interno no servidor ao criar o Checkout.' });
   }
 }
