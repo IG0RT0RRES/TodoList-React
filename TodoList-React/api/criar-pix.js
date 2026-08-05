@@ -24,15 +24,15 @@ export default async function handler(req, res) {
       throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
-    const { matricula, nome, whatsapp, email } = req.body;
+    const { matricula, nome, whatsapp, email } = req.body || {};
 
     if (!matricula || !nome || !whatsapp || !email) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
     }
 
-    // Criação da Checkout Session
+    // Criação da Checkout Session com redirecionamento direto para o WhatsApp após a conclusão ou cancelamento
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card', 'boleto'], // Adicione outros métodos se ativados no Dashboard
+      payment_method_types: ['card', 'boleto'],
       line_items: [
         {
           price_data: {
@@ -48,9 +48,8 @@ export default async function handler(req, res) {
       ],
       mode: 'payment',
       customer_email: email,
-      // URLs para redirecionamento após o pagamento
-      success_url: 'https://checkout.stripe.dev/success',
-      cancel_url: 'https://checkout.stripe.dev/cancel',
+      success_url: `https://wa.me/5521969254192?text=Pagamento%20realizado%20com%20sucesso!%20Matricula:%20${encodeURIComponent(matricula)}`,
+      cancel_url: `https://wa.me/5521969254192?text=O%20pagamento%20da%20licenca%20foi%20cancelado.`,
       metadata: {
         matricula,
         nome,
