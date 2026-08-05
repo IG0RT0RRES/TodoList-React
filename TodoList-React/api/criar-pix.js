@@ -21,22 +21,28 @@ export default async function handler(req, res) {
 
   try {
     if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
+      throw new Error('A chave STRIPE_SECRET_KEY não foi configurada.');
     }
 
-    // 1. Desestruturação incluindo 'matricula'
     const { matricula, nome, whatsapp, email } = req.body;
 
-    // 2. Validação dos campos obrigatórios
     if (!matricula || !nome || !whatsapp || !email) {
-      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios (incluindo a matrícula).' });
+      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
     }
 
-    // 3. Criação do PaymentIntent repassando a matrícula nos metadados
+    // Criação do PaymentIntent PIX de forma confirmada
     const paymentIntent = await stripe.paymentIntents.create({
       amount: 1000, // R$ 10,00
       currency: 'brl',
-      payment_method_types: ['card'],
+      payment_method_types: ['pix'], // 👈 Alterado de 'card' para 'pix'
+      payment_method_data: {
+        type: 'pix',
+        billing_details: {
+          name: nome,
+          email: email,
+        },
+      },
+      confirm: true, // 👈 Importante: confirma a criação para gerar o QR Code imediatamente
       receipt_email: email,
       metadata: { 
         matricula, 
@@ -48,20 +54,14 @@ export default async function handler(req, res) {
 
     const nextAction = paymentIntent.next_action;
     let pixCopiaECola = null;
-    let qrCodeUrl = null;
 
     if (nextAction && nextAction.pix_display_qr_code) {
       pixCopiaECola = nextAction.pix_display_qr_code.data;
-      qrCodeUrl = nextAction.pix_display_qr_code.hosted_instructions_url;
-    } else {
-      // Retorno mockado/fictício de chave Pix para validar o front-end durante a análise da conta Stripe
-      pixCopiaECola = '00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-426614174000520400005303986540510.005802BR5913Teste_Stripe6008BRASILIA62070503***6304E2CA';
     }
 
     return res.status(200).json({
       client_secret: paymentIntent.client_secret,
-      pix_copia_e_cola: pixCopiaECola,
-      qr_code_url: qrCodeUrl
+      pix_copia_e_cola: pixCopiaECola
     });
 
   } catch (error) {
