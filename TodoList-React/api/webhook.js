@@ -224,14 +224,21 @@ export default async function handler(req, res) {
         chaveUso = clienteExistente.chave;
 
         const dataValidadeAtual = new Date(clienteExistente.data_validade);
-        const dataBase = dataValidadeAtual > agora ? dataValidadeAtual : agora;
 
-        novaDataValidade = new Date(dataBase);
-        novaDataValidade.setDate(novaDataValidade.getDate() + 30);
+        // SE FOR LICENÇA VITALÍCIA / ADMIN (Ano superior a 2099)
+        if (dataValidadeAtual.getFullYear() >= 2099) {
+          novaDataValidade = dataValidadeAtual;
+          clienteExistente.status = 'ativa';
+        } else {
+          // Licença comum: soma 30 dias a partir da data atual de validade ou de hoje
+          const dataBase = dataValidadeAtual > agora ? dataValidadeAtual : agora;
+          novaDataValidade = new Date(dataBase);
+          novaDataValidade.setDate(novaDataValidade.getDate() + 30);
 
-        clienteExistente.data_validade = novaDataValidade.toISOString();
-        clienteExistente.data_validade_formatada = novaDataValidade.toLocaleDateString('pt-BR');
-        clienteExistente.status = 'ativa';
+          clienteExistente.data_validade = novaDataValidade.toISOString();
+          clienteExistente.data_validade_formatada = novaDataValidade.toLocaleDateString('pt-BR');
+          clienteExistente.status = 'ativa';
+        }
 
         if (!configData.codigos_validos.includes(chaveUso)) {
           configData.codigos_validos.push(chaveUso);
