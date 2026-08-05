@@ -21,20 +21,22 @@ export default async function handler(req, res) {
 
   try {
     if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('A chave STRIPE_SECRET_KEY não foi configurada.');
+      throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
+    // 1. Desestruturação dos campos
     const { matricula, nome, whatsapp, email } = req.body;
 
+    // 2. Validação dos campos obrigatórios
     if (!matricula || !nome || !whatsapp || !email) {
-      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
+      return res.status(400).json({ error: 'Preencha todos os campos obrigatórios (incluindo a matrícula).' });
     }
 
-    // Criação do PaymentIntent PIX de forma confirmada
+    // 3. Criação do PaymentIntent PIX de forma confirmada na Stripe
     const paymentIntent = await stripe.paymentIntents.create({
       amount: 1000, // R$ 10,00
       currency: 'brl',
-      payment_method_types: ['pix'], // 👈 Alterado de 'card' para 'pix'
+      payment_method_types: ['pix'],
       payment_method_data: {
         type: 'pix',
         billing_details: {
@@ -42,7 +44,7 @@ export default async function handler(req, res) {
           email: email,
         },
       },
-      confirm: true, // 👈 Importante: confirma a criação para gerar o QR Code imediatamente
+      confirm: true,
       receipt_email: email,
       metadata: { 
         matricula, 
