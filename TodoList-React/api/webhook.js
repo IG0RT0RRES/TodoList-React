@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { google } from 'googleapis';
+import { acquireLock, releaseLock } from '../lib/redisLock.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -57,8 +58,6 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
   const whatsappApiUrl = `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`;
   const numeroFormatado = whatsapp.replace(/\D/g, '');
 
-  // Payload formatado para o template personalizado (Ex: envio_licenca)
-  // Certifique-se de que o nome do template no painel da Meta coincida com o campo 'name'
   const payloadMeta = {
     messaging_product: 'whatsapp',
     to: numeroFormatado,
@@ -175,6 +174,18 @@ export default async function handler(req, res) {
   const eventType = event.type;
 
   if (eventType === 'payment_intent.succeeded' || eventType === 'checkout.session.completed') {
+    // Trava de Concorrência
+    const LOCK_KEY = 'lock:stripe_webhook_drive';
+    const lockToken = await acquireLock(LOCK_KEY, 30000); // 30 segundos de limite
+
+    if (!lockToken) {
+      console.warn('⚠️ Webhook concorrente ignorado ou reprocessado mais tarde.');
+      return res.status(429).json({
+        status: 'error',
+        message: 'Outra requisição está atualizando a licença no momento. Tente novamente em instantes.'
+      });
+    }
+
     try {
       const objectData = event.data.object;
       const metadata = objectData.metadata || {};
@@ -313,6 +324,9 @@ export default async function handler(req, res) {
     } catch (ex) {
       console.error('Erro no processamento do webhook:', ex);
       return res.status(500).json({ status: 'error', detalhe: ex.message });
+    } finally {
+      // Libera a trava do Redis após o término da operação
+      await releaseLock(LOCK_KEY, lockToken);
     }
   }
 
