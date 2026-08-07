@@ -13,7 +13,7 @@ export default function Payments() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/criar-checkout', {
+      const response = await fetch('/api/criar-pix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matricula, nome, whatsapp, email })
