@@ -178,8 +178,8 @@ export default async function handler(req, res) {
 
   const eventType = event.type;
 
-  // Filtro atualizado: Processa APENAS checkout.session.completed para garantir captura completa de metadata e telefone
-  if (eventType === 'checkout.session.completed') {
+  // Processa checkout.session.completed ou payment_intent.succeeded
+  if (eventType === 'checkout.session.completed' || eventType === 'payment_intent.succeeded') {
     // Trava de Concorrência
     const LOCK_KEY = 'lock:stripe_webhook_drive';
     const lockToken = await acquireLock(LOCK_KEY, 30000); // 30 segundos de limite
@@ -199,7 +199,6 @@ export default async function handler(req, res) {
       const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || 'Cliente';
       const matricula = metadata.matricula || '';
       
-      // Captura flexível do número de telefone de qualquer origem do Stripe
       const whatsapp = 
         metadata.whatsapp || 
         objectData.customer_details?.phone || 
@@ -237,10 +236,10 @@ export default async function handler(req, res) {
       if (!Array.isArray(configData.licencas_detalhadas)) configData.licencas_detalhadas = [];
       if (!Array.isArray(configData.colaboradores)) configData.colaboradores = [];
 
-      // 2. Verificar cliente existente
+      // 2. Verificar cliente existente de forma segura (Apenas por Matrícula exata ou E-mail exato)
       const clienteExistente = configData.licencas_detalhadas.find(
         (item) =>
-          (whatsapp && item.whatsapp === whatsapp) ||
+          (matricula && item.matricula && item.matricula.trim() === matricula.trim()) ||
           (customerEmail && customerEmail !== 'Cliente desconhecido' && item.email === customerEmail)
       );
 
@@ -345,4 +344,5 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ status: 'ignored', event: eventType });
-}
+  }
+      
