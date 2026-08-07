@@ -50,15 +50,8 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
   const token = process.env.META_ACCESS_TOKEN;
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
 
-  if (!whatsapp) {
-    console.warn('⚠️ WhatsApp não enviado: Telefone do cliente ausente no payload.');
-    return;
-  }
-
-  if (!token || !phoneNumberId) {
-    console.warn('⚠️ WhatsApp não enviado: META_ACCESS_TOKEN ou META_PHONE_NUMBER_ID ausentes nas variáveis de ambiente da Vercel.');
-    return;
-  }
+  if (!whatsapp) return;
+  if (!token || !phoneNumberId) return;
 
   const whatsappApiUrl = `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`;
   const numeroFormatado = whatsapp.replace(/\D/g, '');
@@ -84,7 +77,7 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
   };
 
   try {
-    const response = await fetch(whatsappApiUrl, {
+    await fetch(whatsappApiUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -92,14 +85,6 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
       },
       body: JSON.stringify(payloadMeta),
     });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error('❌ Erro retornado pela Meta WhatsApp API:', JSON.stringify(result, null, 2));
-    } else {
-      console.log('✅ Mensagem WhatsApp enviada com sucesso via Meta API:', result);
-    }
   } catch (error) {
     console.error('❌ Erro na requisição para Meta WhatsApp API:', error);
   }
@@ -165,61 +150,65 @@ export default async function handler(req, res) {
       try {
         event = stripe.webhooks.constructEvent(buf, sig, endpointSecret);
       } catch (err) {
-        console.warn('Falha na verificação da assinatura Stripe. Aplicando fallback JSON.parse para testes.');
         event = JSON.parse(buf.toString('utf8'));
       }
     } else {
       event = JSON.parse(buf.toString('utf8'));
     }
   } catch (err) {
-    console.error(`Erro no Webhook Stripe: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   const eventType = event.type;
 
-  // Processa checkout.session.completed ou payment_intent.succeeded
   if (eventType === 'checkout.session.completed' || eventType === 'payment_intent.succeeded') {
+    const objectData = event.data.object;
+    const metadata = objectData.metadata || {};
+
+    const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || '';
+    const matricula = metadata.matricula || '';
+    
+    let customerEmail = '';
+    if (objectData.customer_details?.email) {
+      customerEmail = objectData.customer_details.email;
+    } else if (objectData.receipt_email) {
+      customerEmail = objectData.receipt_email;
+    } else if (metadata.email) {
+      customerEmail = metadata.email;
+    }
+
+    // --- TRAVA DE SEGURANÇA ANTIFANTASMA ---
+    // Se a requisição não trouxer nem e-mail válido, nem nome e nem matrícula, ela é ignorada com segurança.
+    const isDadosInvalidos = (!customerEmail || customerEmail === 'Cliente desconhecido') && !nome && !matricula;
+    if (isDadosInvalidos) {
+      console.warn('⚠️ Webhook ignorado: Evento do Stripe sem dados identificáveis do cliente.');
+      return res.status(200).json({ status: 'ignored', reason: 'Missing customer identification metadata' });
+    }
+    // ---------------------------------------
+
     // Trava de Concorrência
     const LOCK_KEY = 'lock:stripe_webhook_drive';
-    const lockToken = await acquireLock(LOCK_KEY, 30000); // 30 segundos de limite
+    const lockToken = await acquireLock(LOCK_KEY, 30000);
 
     if (!lockToken) {
-      console.warn('⚠️ Webhook concorrente ignorado ou reprocessado mais tarde.');
       return res.status(429).json({
         status: 'error',
-        message: 'Outra requisição está atualizando a licença no momento. Tente novamente em instantes.'
+        message: 'Outra requisição está atualizando a licença no momento.'
       });
     }
 
     try {
-      const objectData = event.data.object;
-      const metadata = objectData.metadata || {};
-
-      const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || 'Cliente';
-      const matricula = metadata.matricula || '';
-      
       const whatsapp = 
         metadata.whatsapp || 
         objectData.customer_details?.phone || 
         objectData.shipping?.phone || 
         '';
 
-      const colaboradorFormatado = matricula ? `${matricula} - ${nome.toUpperCase()}` : nome.toUpperCase();
-
-      let customerEmail = 'Cliente desconhecido';
-      if (objectData.customer_details?.email) {
-        customerEmail = objectData.customer_details.email;
-      } else if (objectData.receipt_email) {
-        customerEmail = objectData.receipt_email;
-      } else if (metadata.email) {
-        customerEmail = metadata.email;
-      }
+      const colaboradorFormatado = matricula ? `${matricula} - ${nome.toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
       const fileId = process.env.GOOGLE_DRIVE_FILE_ID;
       const drive = getDriveService();
 
-      // 1. Obter arquivo do Drive
       const fileStream = await drive.files.get(
         { fileId, alt: 'media' },
         { responseType: 'text' }
@@ -236,7 +225,7 @@ export default async function handler(req, res) {
       if (!Array.isArray(configData.licencas_detalhadas)) configData.licencas_detalhadas = [];
       if (!Array.isArray(configData.colaboradores)) configData.colaboradores = [];
 
-      // 2. Verificar cliente existente de forma segura (Apenas por Matrícula exata ou E-mail exato)
+      // Verificar cliente existente de forma segura
       const clienteExistente = configData.licencas_detalhadas.find(
         (item) =>
           (matricula && item.matricula && item.matricula.trim() === matricula.trim()) ||
@@ -249,13 +238,11 @@ export default async function handler(req, res) {
       let novaDataValidade = new Date();
 
       if (clienteExistente) {
-        // --- RENOVAÇÃO ---
         isRenovacao = true;
         chaveUso = clienteExistente.chave;
 
         const dataValidadeAtual = new Date(clienteExistente.data_validade);
 
-        // Trava para licenças administrativas/vitalícias (ano >= 2099)
         if (dataValidadeAtual.getFullYear() >= 2099) {
           novaDataValidade = dataValidadeAtual;
           clienteExistente.status = 'ativa';
@@ -273,7 +260,6 @@ export default async function handler(req, res) {
           configData.codigos_validos.push(chaveUso);
         }
       } else {
-        // --- NOVO CLIENTE ---
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + 30);
 
@@ -287,8 +273,8 @@ export default async function handler(req, res) {
           chave: chaveUso,
           matricula,
           colaborador: colaboradorFormatado,
-          nome,
-          email: customerEmail,
+          nome: nome || 'Cliente',
+          email: customerEmail || 'Cliente desconhecido',
           whatsapp,
           data_aquisicao: agora.toISOString(),
           data_validade: novaDataValidade.toISOString(),
@@ -302,7 +288,6 @@ export default async function handler(req, res) {
       const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
 
-      // 3. Salvar no Drive
       await drive.files.update({
         fileId,
         media: {
@@ -311,21 +296,18 @@ export default async function handler(req, res) {
         },
       });
 
-      // 4. Notificações com proteção contra exceções
       await Promise.all([
-        enviarWhatsapp(whatsapp, nome, chaveUso, dataValidadeFormatada, isRenovacao).catch((err) =>
-          console.error('Falha isolada no envio do WhatsApp:', err)
-        ),
+        enviarWhatsapp(whatsapp, nome || 'Cliente', chaveUso, dataValidadeFormatada, isRenovacao).catch(() => {}),
         enviarWebhookDiscord(
           chaveUso,
-          customerEmail,
-          nome,
+          customerEmail || 'Não informado',
+          nome || 'Cliente',
           colaboradorFormatado,
           whatsapp,
           dataAquisicaoFormatada,
           dataValidadeFormatada,
           isRenovacao
-        ).catch((err) => console.error('Falha isolada no envio do Discord:', err)),
+        ).catch(() => {}),
       ]);
 
       return res.status(200).json({
@@ -338,11 +320,10 @@ export default async function handler(req, res) {
       console.error('Erro no processamento do webhook:', ex);
       return res.status(500).json({ status: 'error', detalhe: ex.message });
     } finally {
-      // Libera a trava do Redis após o término da operação
       await releaseLock(LOCK_KEY, lockToken);
     }
   }
 
   return res.status(200).json({ status: 'ignored', event: eventType });
-  }
-      
+      }
+  
