@@ -50,8 +50,13 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
   const token = process.env.META_ACCESS_TOKEN;
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
 
-  if (!whatsapp || !token || !phoneNumberId) {
-    console.warn('WhatsApp não enviado: META_ACCESS_TOKEN, META_PHONE_NUMBER_ID ou telefone ausente.');
+  if (!whatsapp) {
+    console.warn('⚠️ WhatsApp não enviado: Telefone do cliente ausente no payload.');
+    return;
+  }
+
+  if (!token || !phoneNumberId) {
+    console.warn('⚠️ WhatsApp não enviado: META_ACCESS_TOKEN ou META_PHONE_NUMBER_ID ausentes nas variáveis de ambiente da Vercel.');
     return;
   }
 
@@ -91,12 +96,12 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
     const result = await response.json();
 
     if (!response.ok) {
-      console.error('Erro retornado pela Meta WhatsApp API:', JSON.stringify(result, null, 2));
+      console.error('❌ Erro retornado pela Meta WhatsApp API:', JSON.stringify(result, null, 2));
     } else {
-      console.log('Mensagem WhatsApp enviada com sucesso via Meta API:', result);
+      console.log('✅ Mensagem WhatsApp enviada com sucesso via Meta API:', result);
     }
   } catch (error) {
-    console.error('Erro na requisição para Meta WhatsApp API:', error);
+    console.error('❌ Erro na requisição para Meta WhatsApp API:', error);
   }
 }
 
@@ -190,9 +195,15 @@ export default async function handler(req, res) {
       const objectData = event.data.object;
       const metadata = objectData.metadata || {};
 
-      const nome = metadata.nome || metadata.matricula_nome || 'Cliente';
+      const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || 'Cliente';
       const matricula = metadata.matricula || '';
-      const whatsapp = metadata.whatsapp || '';
+      
+      // Captura flexível do número de telefone de qualquer origem do Stripe
+      const whatsapp = 
+        metadata.whatsapp || 
+        objectData.customer_details?.phone || 
+        objectData.shipping?.phone || 
+        '';
 
       const colaboradorFormatado = matricula ? `${matricula} - ${nome.toUpperCase()}` : nome.toUpperCase();
 
@@ -300,9 +311,11 @@ export default async function handler(req, res) {
         },
       });
 
-      // 4. Notificações
+      // 4. Notificações com proteção contra exceções
       await Promise.all([
-        enviarWhatsapp(whatsapp, nome, chaveUso, dataValidadeFormatada, isRenovacao),
+        enviarWhatsapp(whatsapp, nome, chaveUso, dataValidadeFormatada, isRenovacao).catch((err) =>
+          console.error('Falha isolada no envio do WhatsApp:', err)
+        ),
         enviarWebhookDiscord(
           chaveUso,
           customerEmail,
@@ -312,7 +325,7 @@ export default async function handler(req, res) {
           dataAquisicaoFormatada,
           dataValidadeFormatada,
           isRenovacao
-        ),
+        ).catch((err) => console.error('Falha isolada no envio do Discord:', err)),
       ]);
 
       return res.status(200).json({
