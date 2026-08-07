@@ -178,7 +178,8 @@ export default async function handler(req, res) {
 
   const eventType = event.type;
 
-  if (eventType === 'payment_intent.succeeded' || eventType === 'checkout.session.completed') {
+  // Filtro atualizado: Processa APENAS checkout.session.completed para garantir captura completa de metadata e telefone
+  if (eventType === 'checkout.session.completed') {
     // Trava de Concorrência
     const LOCK_KEY = 'lock:stripe_webhook_drive';
     const lockToken = await acquireLock(LOCK_KEY, 30000); // 30 segundos de limite
