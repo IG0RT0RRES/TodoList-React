@@ -30,14 +30,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { chave } = req.body;
+    const { chave, device_id } = req.body;
 
     if (!chave) {
       return res.status(400).json({ autorizado: false, motivo: 'Chave não informada.' });
     }
 
+    if (!device_id) {
+      return res.status(400).json({ autorizado: false, motivo: 'Identificador do dispositivo não informado.' });
+    }
+
     const chaveFormatada = chave.trim().toUpperCase();
     const fileId = process.env.GOOGLE_DRIVE_FILE_ID;
+    
+    if (!fileId) {
+      return res.status(500).json({ autorizado: false, motivo: 'Configuração do arquivo do Drive ausente no servidor.' });
+    }
+
     const drive = getDriveService();
 
     // 1. Buscar o arquivo do Drive
@@ -102,7 +111,27 @@ export default async function handler(req, res) {
       });
     }
 
-    // CASO 3: Chave VÁLIDA
+    // CASO 3: Mecânica Anti-Compartilhamento (Vínculo de Device ID)
+    if (!licenca.device_id) {
+      // Primeiro uso: Vincula esta chave permanentemente ao device_id atual
+      configData.licencas_detalhadas[indexLicenca].device_id = device_id;
+      
+      await drive.files.update({
+        fileId,
+        media: {
+          mimeType: 'application/json',
+          body: JSON.stringify(configData, null, 2),
+        },
+      });
+    } else if (licenca.device_id !== device_id) {
+      // Tentativa de uso em outro computador
+      return res.status(403).json({
+        autorizado: false,
+        motivo: 'Esta licença já está vinculada a outro computador. O compartilhamento não é permitido.',
+      });
+    }
+
+    // CASO 4: Chave VÁLIDA e Dispositivo Autorizado
     return res.status(200).json({
       autorizado: true,
       status: 'ativa',
@@ -115,4 +144,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ autorizado: false, motivo: 'Erro interno no servidor de validação.' });
   }
 }
-  
