@@ -178,7 +178,6 @@ export default async function handler(req, res) {
     }
 
     // --- TRAVA DE SEGURANÇA ANTIFANTASMA ---
-    // Se a requisição não trouxer nem e-mail válido, nem nome e nem matrícula, ela é ignorada com segurança.
     const isDadosInvalidos = (!customerEmail || customerEmail === 'Cliente desconhecido') && !nome && !matricula;
     if (isDadosInvalidos) {
       console.warn('⚠️ Webhook ignorado: Evento do Stripe sem dados identificáveis do cliente.');
@@ -256,6 +255,8 @@ export default async function handler(req, res) {
           clienteExistente.status = 'ativa';
         }
 
+        // Mantém o device_id existente do cliente para não desvincular o aparelho dele na renovação
+
         if (!configData.codigos_validos.includes(chaveUso)) {
           configData.codigos_validos.push(chaveUso);
         }
@@ -276,6 +277,7 @@ export default async function handler(req, res) {
           nome: nome || 'Cliente',
           email: customerEmail || 'Cliente desconhecido',
           whatsapp,
+          device_id: null, // Nova licença nasce sem aparelho amarrado (será vinculado no 1º login)
           data_aquisicao: agora.toISOString(),
           data_validade: novaDataValidade.toISOString(),
           data_aquisicao_formatada: agora.toLocaleDateString('pt-BR'),
@@ -325,5 +327,4 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ status: 'ignored', event: eventType });
-      }
-  
+}
