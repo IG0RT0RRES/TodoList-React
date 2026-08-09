@@ -127,7 +127,7 @@ export default async function handler(req, res) {
       // Tentativa de uso em outro computador
       return res.status(403).json({
         autorizado: false,
-        motivo: 'Esta licença já está vinculada a outro computador. O compartilhamento não é permitido.',
+        motivo: 'Esta licença já está vinculada a outro usuário. O compartilhamento não é permitido.',
       });
     }
 
