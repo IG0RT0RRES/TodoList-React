@@ -90,7 +90,7 @@ async function enviarParaDiscord(webhookUrl, dados) {
   // Monta uma mensagem estruturada e elegante (Embed do Discord)
   const payload = {
     username: "Notificador WhatsApp",
-    avatar_url: "https://i.imgur.com/Tg00qH0.png",
+    avatar_url: "https://cdn.discordapp.com/attachments/1441061340197158944/1534372399330627697/Gemini_Generated_Image_.png?ex=6a792927&is=6a77d7a7&hm=a02429b76a1385765f567723f027a7ca1758475d35f320e05c05806fa95f1b82&",
     embeds: [
       {
         title: "📥 Nova Mensagem Recebida",
