@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     }
 
     const chaveFormatada = chave.trim().toUpperCase();
-    const fileId = process.env.GOOGLE_DRIVE_FILE_ID;
+    const fileId = process.env.GOOGLE_DRIVE_FILE_ID_LICENCES;
     
     if (!fileId) {
       return res.status(500).json({ autorizado: false, motivo: 'Configuração do arquivo do Drive ausente no servidor.' });
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
 
     // CASO 2: Chave EXPIRADA ou INATIVA
     if (agora > dataValidade || licenca.status !== 'ativa') {
-      // Remover a chave expirada dos dois arrays
+      // Atualiza o status para expirada se ainda não estiver
       configData.licencas_detalhadas[indexLicenca].status = 'expirada';
       configData.codigos_validos = codigosValidos.filter((code) => code !== chaveFormatada);
 

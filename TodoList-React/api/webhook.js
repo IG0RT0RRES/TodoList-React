@@ -5,14 +5,12 @@ import { acquireLock, releaseLock } from '../lib/redisLock.js';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-// Desativa o bodyParser nativo da Vercel para ler o Raw Body do Stripe
 export const config = {
   api: {
     bodyParser: false,
   },
 };
 
-// Leitura nativa e assíncrona do Stream da requisição para preservar o Raw Body exato
 function getRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -97,7 +95,7 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
   const titulo = isRenovacao ? 'Licença Renovada (+30 Dias)' : 'Nova Licença Gerada (30 Dias)';
   const descricao = isRenovacao
     ? 'Um pagamento de renovação foi processado e a validade da chave existente foi estendida.'
-    : 'Um novo colaborador foi cadastrado e os dados foram salvos no Drive.';
+    : 'Um novo colaborador foi cadastrado e os arquivos do Drive foram atualizados.';
 
   const payload = {
     username: 'Stripe Pix Bot',
@@ -177,22 +175,19 @@ export default async function handler(req, res) {
       customerEmail = metadata.email;
     }
 
-    // --- TRAVA DE SEGURANÇA ANTIFANTASMA ---
     const isDadosInvalidos = (!customerEmail || customerEmail === 'Cliente desconhecido') && !nome && !matricula;
     if (isDadosInvalidos) {
       console.warn('⚠️ Webhook ignorado: Evento do Stripe sem dados identificáveis do cliente.');
       return res.status(200).json({ status: 'ignored', reason: 'Missing customer identification metadata' });
     }
-    // ---------------------------------------
 
-    // Trava de Concorrência
-    const LOCK_KEY = 'lock:stripe_webhook_drive';
+    const LOCK_KEY = 'lock:stripe_webhook_drive_dual';
     const lockToken = await acquireLock(LOCK_KEY, 30000);
 
     if (!lockToken) {
       return res.status(429).json({
         status: 'error',
-        message: 'Outra requisição está atualizando a licença no momento.'
+        message: 'Outra requisição está atualizando as licenças no momento.'
       });
     }
 
@@ -205,27 +200,35 @@ export default async function handler(req, res) {
 
       const colaboradorFormatado = matricula ? `${matricula} - ${nome.toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-      const fileId = process.env.GOOGLE_DRIVE_FILE_ID;
+      const fileIdLicenses = process.env.GOOGLE_DRIVE_FILE_ID_LICENCES;
+      const fileIdConfig = process.env.GOOGLE_DRIVE_FILE_ID;
       const drive = getDriveService();
 
-      const fileStream = await drive.files.get(
-        { fileId, alt: 'media' },
-        { responseType: 'text' }
-      );
-
-      let configData = {};
+      // 1. Ler licenses.json
+      const streamLicenses = await drive.files.get({ fileId: fileIdLicenses, alt: 'media' }, { responseType: 'text' });
+      let licensesData = {};
       try {
-        configData = typeof fileStream.data === 'string' ? JSON.parse(fileStream.data) : fileStream.data;
+        licensesData = typeof streamLicenses.data === 'string' ? JSON.parse(streamLicenses.data) : streamLicenses.data;
       } catch (e) {
-        configData = { codigos_validos: [], licencas_detalhadas: [], colaboradores: [] };
+        licensesData = { codigos_validos: [], licencas_detalhadas: [] };
       }
 
-      if (!Array.isArray(configData.codigos_validos)) configData.codigos_validos = [];
-      if (!Array.isArray(configData.licencas_detalhadas)) configData.licencas_detalhadas = [];
+      if (!Array.isArray(licensesData.codigos_validos)) licensesData.codigos_validos = [];
+      if (!Array.isArray(licensesData.licencas_detalhadas)) licensesData.licencas_detalhadas = [];
+
+      // 2. Ler Config.json
+      const streamConfig = await drive.files.get({ fileId: fileIdConfig, alt: 'media' }, { responseType: 'text' });
+      let configData = {};
+      try {
+        configData = typeof streamConfig.data === 'string' ? JSON.parse(streamConfig.data) : streamConfig.data;
+      } catch (e) {
+        configData = { supervisores: [], colaboradores: [], equipes: [], projetos: [] };
+      }
+
       if (!Array.isArray(configData.colaboradores)) configData.colaboradores = [];
 
-      // Verificar cliente existente de forma segura
-      const clienteExistente = configData.licencas_detalhadas.find(
+      // Verificar se cliente já existe nas licenças
+      const clienteExistente = licensesData.licencas_detalhadas.find(
         (item) =>
           (matricula && item.matricula && item.matricula.trim() === matricula.trim()) ||
           (customerEmail && customerEmail !== 'Cliente desconhecido' && item.email === customerEmail)
@@ -255,29 +258,23 @@ export default async function handler(req, res) {
           clienteExistente.status = 'ativa';
         }
 
-        // Mantém o device_id existente do cliente para não desvincular o aparelho dele na renovação
-
-        if (!configData.codigos_validos.includes(chaveUso)) {
-          configData.codigos_validos.push(chaveUso);
+        if (!licensesData.codigos_validos.includes(chaveUso)) {
+          licensesData.codigos_validos.push(chaveUso);
         }
       } else {
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + 30);
 
-        configData.codigos_validos.push(chaveUso);
+        licensesData.codigos_validos.push(chaveUso);
 
-        if (!configData.colaboradores.includes(colaboradorFormatado)) {
-          configData.colaboradores.push(colaboradorFormatado);
-        }
-
-        configData.licencas_detalhadas.push({
+        licensesData.licencas_detalhadas.push({
           chave: chaveUso,
           matricula,
           colaborador: colaboradorFormatado,
           nome: nome || 'Cliente',
           email: customerEmail || 'Cliente desconhecido',
           whatsapp,
-          device_id: null, // Nova licença nasce sem aparelho amarrado (será vinculado no 1º login)
+          device_id: null,
           data_aquisicao: agora.toISOString(),
           data_validade: novaDataValidade.toISOString(),
           data_aquisicao_formatada: agora.toLocaleDateString('pt-BR'),
@@ -287,16 +284,31 @@ export default async function handler(req, res) {
         });
       }
 
+      // Adiciona o colaborador no Config.json caso ainda não exista
+      if (!configData.colaboradores.includes(colaboradorFormatado)) {
+        configData.colaboradores.push(colaboradorFormatado);
+      }
+
       const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
 
-      await drive.files.update({
-        fileId,
-        media: {
-          mimeType: 'application/json',
-          body: JSON.stringify(configData, null, 2),
-        },
-      });
+      // Salvar atualizações no Google Drive (ambos os arquivos)
+      await Promise.all([
+        drive.files.update({
+          fileId: fileIdLicenses,
+          media: {
+            mimeType: 'application/json',
+            body: JSON.stringify(licensesData, null, 2),
+          },
+        }),
+        drive.files.update({
+          fileId: fileIdConfig,
+          media: {
+            mimeType: 'application/json',
+            body: JSON.stringify(configData, null, 2),
+          },
+        })
+      ]);
 
       await Promise.all([
         enviarWhatsapp(whatsapp, nome || 'Cliente', chaveUso, dataValidadeFormatada, isRenovacao).catch(() => {}),
