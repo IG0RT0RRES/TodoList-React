@@ -14,6 +14,26 @@ function getDriveService() {
   return google.drive({ version: 'v3', auth });
 }
 
+// Função auxiliar para disparar o webhook de notificação
+async function dispararWebhook(conteudoMensagem) {
+  const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) return; // Se não houver webhook configurado, apenas ignora
+
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: conteudoMensagem,
+      }),
+    });
+  } catch (error) {
+    console.error('Erro ao disparar webhook:', error);
+  }
+}
+
 export default async function handler(req, res) {
   // Configuração CORS para aceitar chamadas do seu app
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -73,6 +93,9 @@ export default async function handler(req, res) {
       // Fallback: Checa se existe no array simples 'codigos_validos' (compatibilidade antiga)
       const existeNoArraySimples = codigosValidos.includes(chaveFormatada);
       if (existeNoArraySimples) {
+        // Dispara webhook informando o acesso via modo legado
+        await dispararWebhook(`🔑 **Acesso ao App Realizado**\n- Licença: \`${chaveFormatada}\`\n- Modo: Legado (Array Simples)`);
+        
         return res.status(200).json({
           autorizado: true,
           mensagem: 'Licença válida (Modo Legado).',
@@ -80,6 +103,7 @@ export default async function handler(req, res) {
       }
 
       return res.status(401).json({
+        autorizado: seguindo => false,
         autorizado: false,
         motivo: 'Chave de acesso inválida ou não encontrada.',
       });
@@ -131,7 +155,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // CASO 4: Chave VÁLIDA e Dispositivo Autorizado
+    // CASO 4: Chave VÁLIDA e Dispositivo Autorizado -> Dispara o Webhook de sucesso no padrão solicitado
+    const nomeUsuario = licenca.nome ? `\n- Nome: ${licenca.nome}` : '';
+    await dispararWebhook(`🔑 **Acesso ao App Realizado**\n- Licença: \`${chaveFormatada}\`${nomeUsuario}\n- Validade: ${licenca.data_validade_formatada}`);
+
     return res.status(200).json({
       autorizado: true,
       status: 'ativa',
