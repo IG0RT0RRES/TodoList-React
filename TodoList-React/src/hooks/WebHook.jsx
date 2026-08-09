@@ -5,7 +5,7 @@ const WebHook = ({ title, description, Info, color, properties }) => {
     
     useEffect(() => {
         const sendWebHook = async () => {
-            const webhookUrl = import.meta.env.VITE_DISCORD_WEBHOOK_URL; // Pegando a URL do Webhook do arquivo .env
+            const webhookUrl = import.meta.env.VITE_DISCORD_WEBHOOK_TODO_LIST; // Pegando a URL do Webhook do arquivo .env
 
             const payload = {
                 username: 'Page Quiz Bot TodoList', // Optional: Custom username for the bot
