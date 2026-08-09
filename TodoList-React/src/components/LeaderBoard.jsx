@@ -13,7 +13,6 @@ const Leaderboard = () => {
                 setLoading(true);
                 setError(false);
                 
-                // O método atualizado retorna a estrutura { date, profiles }
                 const result = await requestlist.GetProfilesList();
                 
                 setProfiles(result.profiles || []);
@@ -69,12 +68,20 @@ const Leaderboard = () => {
 
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {profiles.map((profile, index) => {
-                    // Trata caso a string do ícone esteja vazia (gera iniciais automaticamente)
-                    const avatarSrc = profile.icon && profile.icon.trim() !== ""
-                        ? `data:image/png;base64,${profile.icon}`
-                        : `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.nickname)}&background=334155&color=fff&size=40`;
+                    // Resolução do Avatar apontando para a pasta /public/avatares/
+                    let avatarSrc = '/avatares/Avatar-0.png';
 
-                    // Destaque de cor para os 3 primeiros colocados
+                    if (profile.icon && profile.icon.trim() !== "") {
+                        if (profile.icon.startsWith("data:image") || profile.icon.length > 200) {
+                            // Compatibilidade com cadastros antigos em Base64
+                            avatarSrc = profile.icon.startsWith("data:image") ? profile.icon : `data:image/png;base64,${profile.icon}`;
+                        } else {
+                            // Mapeamento para imagens em /public/avatares/
+                            const fileName = profile.icon.endsWith('.png') ? profile.icon : `${profile.icon}.png`;
+                            avatarSrc = `/avatares/${fileName}`;
+                        }
+                    }
+
                     const isTop1 = index === 0;
                     const isTop2 = index === 1;
                     const isTop3 = index === 2;
@@ -91,19 +98,20 @@ const Leaderboard = () => {
                                 padding: '10px 14px',
                                 backgroundColor: isTop1 ? '#1e293b' : '#0f172a',
                                 border: isTop1 ? '1px solid #eab308' : '1px solid #1e293b',
-                                borderRadius: '8px',
-                                transition: 'transform 0.1s ease'
+                                borderRadius: '8px'
                             }}
                         >
-                            {/* Posição no Ranking */}
                             <span style={{ color: posColor, fontWeight: 'bold', width: '32px', textAlign: 'left', fontSize: '15px' }}>
                                 {profile.position + 1}º
                             </span>
 
-                            {/* Ícone / Avatar */}
                             <img 
                                 src={avatarSrc} 
                                 alt={profile.nickname}
+                                onError={(e) => {
+                                    // Fallback caso a imagem especificada não seja encontrada
+                                    e.target.src = '/avatares/Avatar-0.png';
+                                }}
                                 style={{ 
                                     width: '40px', 
                                     height: '40px', 
@@ -114,7 +122,6 @@ const Leaderboard = () => {
                                 }} 
                             />
 
-                            {/* Informações do Jogador */}
                             <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', flex: 1 }}>
                                 <strong style={{ color: '#ffffff', fontSize: '14px' }}>
                                     {profile.nickname}
@@ -126,7 +133,6 @@ const Leaderboard = () => {
                                 )}
                             </div>
 
-                            {/* Pontuação */}
                             <span style={{ color: '#38bdf8', fontWeight: 'bold', fontSize: '15px' }}>
                                 {Number(profile.score).toLocaleString('pt-BR')} <span style={{ fontSize: '11px', color: '#64748b' }}>pts</span>
                             </span>
