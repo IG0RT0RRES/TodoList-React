@@ -43,7 +43,7 @@ export default function DataDeletionRequest() {
       setSubmitted(true);
     } catch (error) {
       alert('Ocorreu um erro ao enviar sua solicitação. Tente novamente.');
-    } fontally {
+    } finally {
       setLoading(false);
     }
   };
