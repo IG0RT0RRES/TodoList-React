@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-// Componente para os ícones flutuantes do fundo (para simplicidade, usando emojis)
+// Componente para os ícones flutuantes do fundo
 const BackgroundDecorations = () => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
     <span className="absolute text-7xl top-20 left-1/4 animate-float-slow">🎲</span>
@@ -43,13 +43,12 @@ export default function DataDeletionRequest() {
       setSubmitted(true);
     } catch (error) {
       alert('Ocorreu um erro ao enviar sua solicitação. Tente novamente.');
-    } finally {
+    } fontally {
       setLoading(false);
     }
   };
 
   return (
-    // Fundo com Gradiente Radial e Animações (Adicionar keyframes no tailwind.config ou style tag)
     <div className="relative min-h-screen text-slate-100 flex flex-col justify-center items-center p-4 bg-[#0a0e17] overflow-hidden">
       {/* Efeito de brilho radial no centro */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(30,58,138,0.3)_0%,_rgba(10,14,23,1)_70%)]"></div>
@@ -81,7 +80,6 @@ export default function DataDeletionRequest() {
           
           {/* Cabeçalho */}
           <div className="flex flex-col items-center mb-8 text-center">
-            {/* Logo do Jogo (Simulado com texto e cor) */}
             <div className="flex items-center gap-3 mb-2">
               <span className="text-4xl">👑</span>
               <h1 className="text-4xl md:text-5xl font-black tracking-tighter">
@@ -92,7 +90,7 @@ export default function DataDeletionRequest() {
 
           {submitted ? (
             /* Mensagem de Sucesso */
-            <div className="bg-emerald-900/40 border-2 border-emerald-500 rounded-2xl p-8 text-center shadow-lg animate-fade-in">
+            <div className="bg-emerald-900/40 border-2 border-emerald-500 rounded-2xl p-8 text-center shadow-lg">
               <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/50">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
@@ -170,7 +168,7 @@ export default function DataDeletionRequest() {
                 />
               </div>
 
-              {/* Caixa de Atenção Estilizada */}
+              {/* Caixa de Atenção */}
               <div className="bg-yellow-950/50 border-2 border-yellow-600 rounded-xl p-5 flex gap-4 items-start shadow-lg">
                 <span className="text-3xl mt-1">⚠️</span>
                 <div>
@@ -197,12 +195,12 @@ export default function DataDeletionRequest() {
                 </label>
               </div>
 
-              {/* Botão Estilizado (Gradiente e Sombra) */}
+              {/* Botão Corrigido */}
               <button
                 type="submit"
                 disabled={loading || !formData.confirmCheck}
                 className="w-full mt-6 bg-gradient-to-r from-red-600 to-yellow-500 hover:from-red-700 hover:to-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold py-4 px-6 rounded-xl transition-all duration-300 text-lg shadow-[0_5px_0_#b91c1c] hover:shadow-[0_3px_0_#b91c1c] active:shadow-none active:translate-y-[3px] tracking-tight"
-              ) : (
+              >
                 {loading ? 'Processando solicitação...' : 'Solicitar Exclusão de Dados'}
               </button>
             </form>
