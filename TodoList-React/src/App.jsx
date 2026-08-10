@@ -4,6 +4,7 @@ import PrivacyPolicy from './components/PrivacyPolicy'
 import DeveloperProfile from './components/DeveloperProfile'
 import AuthForm from './components/AuthForm'
 import LeaderBoard from './components/LeaderBoard'
+import ExclusaoDeDados from './components/ExclusaoDeDados'
 {/*import Payments from './components/Payments'*/}
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
               <Route path="*" element={<h1>404 - Página Não Encontrada</h1>} />
               <Route path="/Cadastro" element={<AuthForm/>}/>
               <Route path="/LeaderBoard" element={<LeaderBoard/>}/>
+              <Route path="/ExclusaoDeDados" element={<ExclusaoDeDados/>}/>
               {/*<Route path="/Pagamentos" element={<Payments/>}/>*/}
             </Routes>
           </BrowserRouter>
