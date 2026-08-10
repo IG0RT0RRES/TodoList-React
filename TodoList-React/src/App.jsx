@@ -18,7 +18,7 @@ function App() {
               <Route path="*" element={<h1>404 - Página Não Encontrada</h1>} />
               <Route path="/Cadastro" element={<AuthForm/>}/>
               <Route path="/LeaderBoard" element={<LeaderBoard/>}/>
-              <Route path="/Exclusao-de-Dados" element={<ExclusaoDeDados/>}/>
+              <Route path="/Exclusao" element={<ExclusaoDeDados/>}/>
               {/*<Route path="/Pagamentos" element={<Payments/>}/>*/}
             </Routes>
           </BrowserRouter>
