@@ -98,12 +98,12 @@ export default async function handler(req, res) {
         
         return res.status(200).json({
           autorizado: true,
+          admin: false, // Compatibilidade com versões novas (legado não é admin)
           mensagem: 'Licença válida (Modo Legado).',
         });
       }
 
       return res.status(401).json({
-        autorizado: seguindo => false,
         autorizado: false,
         motivo: 'Chave de acesso inválida ou não encontrada.',
       });
@@ -155,13 +155,17 @@ export default async function handler(req, res) {
       });
     }
 
-    // CASO 4: Chave VÁLIDA e Dispositivo Autorizado -> Dispara o Webhook de sucesso no padrão solicitado
+    // CASO 4: Chave VÁLIDA e Dispositivo Autorizado -> Dispara o Webhook de sucesso
+    const isAdmin = licenca.admin === true;
+    const tipoUsuarioStr = isAdmin ? '👑 (Administrador)' : '👤 (Usuário)';
+
     const nomeUsuario = licenca.nome ? `\n- Nome: ${licenca.nome}` : '';
-    await dispararWebhook(`🔑 **Acesso ao App Realizado**\n- Licença: \`${chaveFormatada}\`${nomeUsuario}\n- Validade: ${licenca.data_validade_formatada}`);
+    await dispararWebhook(`🔑 **Acesso ao App Realizado** ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuario}\n- Validade: ${licenca.data_validade_formatada}`);
 
     return res.status(200).json({
       autorizado: true,
       status: 'ativa',
+      admin: isAdmin, // Propriedade nova enviada sem afetar propriedades antigas
       usuario: licenca.nome,
       validade: licenca.data_validade_formatada,
       mensagem: 'Acesso autorizado.',
