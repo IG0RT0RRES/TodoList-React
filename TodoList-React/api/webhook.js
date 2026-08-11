@@ -281,6 +281,7 @@ export default async function handler(req, res) {
           data_validade_formatada: novaDataValidade.toLocaleDateString('pt-BR'),
           dias_validade: 30,
           status: 'ativa',
+          admin: false, // Novos cadastros via Stripe nascem como não-admin por segurança
         });
       }
 
@@ -339,4 +340,5 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ status: 'ignored', event: eventType });
-}
+        }
+          
