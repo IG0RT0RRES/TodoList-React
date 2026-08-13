@@ -182,41 +182,40 @@ export default async function handler(req, res) {
 
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // 1. Garantir ou inserir o colaborador na tabela "colaboradores"
+      // 1. Garantir ou inserir o colaborador na tabela "colaboradores" com upsert seguro
       let colaboradorId = null;
 
       if (matricula) {
-        // Tenta buscar pelo registro existente com essa matrícula
-        const { data: colabExistente } = await supabase
+        const { data: colabData, error: colabError } = await supabase
           .from('colaboradores')
+          .upsert({
+            matricula: matricula.trim(),
+            nome: (nome || 'Cliente').toUpperCase(),
+            email: customerEmail || metadata.email || null,
+            equipe: metadata.equipe || null,
+            projeto: metadata.projeto || null,
+            supervisor: metadata.supervisor || null
+          }, { onConflict: 'matricula' })
           .select('id')
-          .eq('matricula', matricula.trim())
           .single();
 
-        if (colabExistente) {
-          colaboradorId = colabExistente.id;
-        } else {
-          // Insere novo colaborador
-          const { data: novoColab, error: errColab } = await supabase
-            .from('colaboradores')
-            .insert([{ matricula: matricula.trim(), nome: (nome || 'Cliente').toUpperCase() }])
-            .select('id')
-            .single();
+        if (colabError) {
+          console.error("Erro ao salvar colaborador no Supabase:", colabError);
+          throw new Error("Erro ao salvar colaborador: " + colabError.message);
+        }
 
-          if (!errColab && novoColab) {
-            colaboradorId = novoColab.id;
-          }
+        if (colabData) {
+          colaboradorId = colabData.id;
         }
       }
 
-      // 2. Verificar se já existe uma licença ativa para este cliente (por matrícula ou e-mail)
+      // 2. Verificar se já existe uma licença ativa para este cliente
       let queryLicenca = supabase.from('licencas').select('*, colaboradores(matricula, nome)');
       
-      if (matricula) {
-        // Se tem matrícula, podemos buscar cruzando com o colaborador ou se houver campo correspondente
+      if (colaboradorId) {
         queryLicenca = queryLicenca.eq('colaborador_id', colaboradorId);
-      } else if (customerEmail && customerEmail !== 'Cliente desconhecido') {
-        queryLicenca = queryLicenca.eq('whatsapp', whatsapp); // ou outro campo de identificação se preferir
+      } else if (whatsapp) {
+        queryLicenca = queryLicenca.eq('whatsapp', whatsapp);
       }
 
       const { data: licencasEncontradas } = await queryLicenca;
@@ -241,7 +240,7 @@ export default async function handler(req, res) {
         }
 
         // Atualiza a validade e status no Supabase
-        await supabase
+        const { error: updateError } = await supabase
           .from('licencas')
           .update({
             data_validade: novaDataValidade.toISOString(),
@@ -249,20 +248,30 @@ export default async function handler(req, res) {
           })
           .eq('chave', chaveUso);
 
+        if (updateError) {
+          console.error("Erro ao atualizar licença existente:", updateError);
+          throw new Error("Erro ao atualizar licença: " + updateError.message);
+        }
+
       } else {
-        // Nova licença
+        // Nova licença gerada corretamente vinculada ao colaborador
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + 30);
 
-        await supabase.from('licencas').insert([{
+        const { error: insertLicencaError } = await supabase.from('licencas').insert([{
           colaborador_id: colaboradorId,
           chave: chaveUso,
           data_aquisicao: agora.toISOString(),
           data_validade: novaDataValidade.toISOString(),
           status: 'ativa',
           whatsapp: whatsapp || null,
-          administrador: false
+          admin: false
         }]);
+
+        if (insertLicencaError) {
+          console.error("Erro ao inserir nova licença:", insertLicencaError);
+          throw new Error("Erro ao criar licença: " + insertLicencaError.message);
+        }
       }
 
       const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
