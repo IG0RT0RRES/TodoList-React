@@ -83,7 +83,6 @@ export default async function handler(req, res) {
 
     // 2. CASO: Chave EXPIRADA ou INATIVA
     if (agora > dataValidade || licenca.status !== 'ativa') {
-      // Atualiza o status para expirada no Supabase se ainda não estiver
       if (licenca.status !== 'expirada') {
         await supabase
           .from('licencas')
@@ -100,21 +99,19 @@ export default async function handler(req, res) {
 
     // 3. Mecânica Anti-Compartilhamento (Vínculo de Device ID)
     if (!licenca.device_id) {
-      // Primeiro uso: Vincula esta chave permanentemente ao device_id atual
       await supabase
         .from('licencas')
         .update({ device_id: device_id })
         .eq('chave', chaveFormatada);
     } else if (licenca.device_id !== device_id) {
-      // Tentativa de uso em outro dispositivo
       return res.status(403).json({
         autorizado: false,
         motivo: 'Esta licença já está vinculada a outro usuário. O compartilhamento não é permitido.',
       });
     }
 
-    // 4. CASO: Chave VÁLIDA e Dispositivo Autorizado -> Dispara o Webhook de sucesso
-    const isAdmin = licenca.administrador === true;
+    // 4. Mapeia corretamente a flag de administrador vinda da coluna 'admin'
+    const isAdmin = Boolean(licenca.admin);
     const tipoUsuarioStr = isAdmin ? '👑 (Administrador)' : '👤 (Usuário)';
     const nomeColab = licenca.colaboradores?.nome ? licenca.colaboradores.nome : 'Cliente';
     const nomeUsuarioStr = `\n- Nome: ${nomeColab}`;
@@ -124,7 +121,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       autorizado: true,
       status: 'ativa',
-      admin: isAdmin,
+      admin: isAdmin, // Garante o envio explícito para o app Flet
       usuario: nomeColab,
       validade: dataValidadeFormatada,
       mensagem: 'Acesso autorizado.',
