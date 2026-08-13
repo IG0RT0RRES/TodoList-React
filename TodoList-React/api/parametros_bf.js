@@ -1,45 +1,45 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export default async function handler(req, res) {
+  // Permite apenas método GET
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
   try {
-    // 1. Busca em paralelo todas as tabelas de parâmetros e colaboradores no Supabase
-    const [
-      { data: supervisoresData, error: errSup },
-      { data: equipesData, error: errEq },
-      { data: projetosData, error: errProj },
-      { data: colaboradoresData, error: errColab }
-    ] = await Promise.all([
-      supabase.from('supervisores').select('nome'),
-      supabase.from('equipes').select('nome'),
-      supabase.from('projetos').select('nome'),
-      supabase.from('colaboradores').select('matricula, nome')
-    ]);
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (errSup || errEq || errProj || errColab) {
-      throw new Error('Erro ao buscar dados do Supabase');
+    // Valida se as credenciais existem explicitamente
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Variáveis de ambiente SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configuradas na Vercel.');
     }
 
-    // 2. Mapeia para arrays simples de strings (formato original esperado pelo app)
-    const supervisores = supervisoresData.map(item => item.nome);
-    const equipes = equipesData.map(item => item.nome);
-    const projetos = projetosData.map(item => item.nome);
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Formata a lista de colaboradores (ex: "7000027 - IGOR TORRES DE PADUA")
-    const colaboradores = colaboradoresData.map(item => {
+    // Busca as tabelas individualmente
+    const { data: supervisoresData, error: errSup } = await supabase.from('supervisores').select('nome');
+    if (errSup) throw new Error(`Erro em supervisores: ${errSup.message}`);
+
+    const { data: equipesData, error: errEq } = await supabase.from('equipes').select('nome');
+    if (errEq) throw new Error(`Erro em equipes: ${errEq.message}`);
+
+    const { data: projetosData, error: errProj } = await supabase.from('projetos').select('nome');
+    if (errProj) throw new Error(`Erro em projetos: ${errProj.message}`);
+
+    const { data: colaboradoresData, error: errColab } = await supabase.from('colaboradores').select('matricula, nome');
+    if (errColab) throw new Error(`Erro em colaboradores: ${errColab.message}`);
+
+    // Mapeia os dados para o formato original do config.json
+    const supervisores = (supervisoresData || []).map(item => item.nome);
+    const equipes = (equipesData || []).map(item => item.nome);
+    const projetos = (projetosData || []).map(item => item.nome);
+
+    const colaboradores = (colaboradoresData || []).map(item => {
       const nomeUpper = item.nome ? item.nome.toUpperCase() : '';
       return item.matricula ? `${item.matricula} - ${nomeUpper}` : nomeUpper;
     });
 
-    // 3. Retorna a estrutura JSON idêntica à original
     return res.status(200).json({
       supervisores,
       colaboradores,
@@ -48,7 +48,11 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    console.error('Erro no endpoint parâmetros_bf:', err);
-    return res.status(500).json({ status: 'error', detalhe: err.message });
+    console.error('Detalhe do erro na Serverless Function:', err.message);
+    return res.status(500).json({ 
+      status: 'error', 
+      mensagem: 'Falha ao processar requisição no servidor',
+      detalhe: err.message 
+    });
   }
 }
