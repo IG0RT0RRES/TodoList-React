@@ -1,23 +1,9 @@
-import { google } from 'googleapis';
+import { createClient } from '@supabase/supabase-js';
 
-function getDriveService() {
-  const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!credsJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não definida.');
-
-  const credsDict = typeof credsJson === 'string' ? JSON.parse(credsJson) : credsJson;
-
-  const auth = new google.auth.GoogleAuth({
-    credentials: credsDict,
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  });
-
-  return google.drive({ version: 'v3', auth });
-}
-
-// Função auxiliar para disparar o webhook de notificação
+// Função auxiliar para disparar o webhook de notificação (Discord)
 async function dispararWebhook(conteudoMensagem) {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) return; // Se não houver webhook configurado, apenas ignora
+  if (!webhookUrl) return;
 
   try {
     await fetch(webhookUrl, {
@@ -35,7 +21,7 @@ async function dispararWebhook(conteudoMensagem) {
 }
 
 export default async function handler(req, res) {
-  // Configuração CORS para aceitar chamadas do seu app
+  // Configuração CORS para aceitar chamadas do app
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
@@ -61,115 +47,89 @@ export default async function handler(req, res) {
     }
 
     const chaveFormatada = chave.trim().toUpperCase();
-    const fileId = process.env.GOOGLE_DRIVE_FILE_ID_LICENCES;
-    
-    if (!fileId) {
-      return res.status(500).json({ autorizado: false, motivo: 'Configuração do arquivo do Drive ausente no servidor.' });
+
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({ autorizado: false, motivo: 'Configuração do Supabase ausente no servidor.' });
     }
 
-    const drive = getDriveService();
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Buscar o arquivo do Drive
-    const fileStream = await drive.files.get(
-      { fileId, alt: 'media' },
-      { responseType: 'text' }
-    );
+    // 1. Buscar a licença no Supabase junto com os dados do colaborador
+    const { data: licenca, error: fetchError } = await supabase
+      .from('licencas')
+      .select(`
+        *,
+        colaboradores (
+          nome,
+          matricula
+        )
+      `)
+      .eq('chave', chaveFormatada)
+      .single();
 
-    let configData = {};
-    try {
-      configData = typeof fileStream.data === 'string' ? JSON.parse(fileStream.data) : fileStream.data;
-    } catch (e) {
-      return res.status(500).json({ autorizado: false, motivo: 'Erro ao ler banco de dados.' });
-    }
-
-    const licencas = configData.licencas_detalhadas || [];
-    const codigosValidos = configData.codigos_validos || [];
-
-    // 2. Localizar a licença pelo código
-    const indexLicenca = licencas.findIndex((item) => item.chave === chaveFormatada);
-
-    // CASO 1: Chave não cadastrada na estrutura detalhada
-    if (indexLicenca === -1) {
-      // Fallback: Checa se existe no array simples 'codigos_validos' (compatibilidade antiga)
-      const existeNoArraySimples = codigosValidos.includes(chaveFormatada);
-      if (existeNoArraySimples) {
-        // Dispara webhook informando o acesso via modo legado
-        await dispararWebhook(`🔑 **Acesso ao App Realizado**\n- Licença: \`${chaveFormatada}\`\n- Modo: Legado (Array Simples)`);
-        
-        return res.status(200).json({
-          autorizado: true,
-          admin: false, // Compatibilidade com versões novas (legado não é admin)
-          mensagem: 'Licença válida (Modo Legado).',
-        });
-      }
-
+    if (fetchError || !licenca) {
       return res.status(401).json({
         autorizado: false,
         motivo: 'Chave de acesso inválida ou não encontrada.',
       });
     }
 
-    const licenca = licencas[indexLicenca];
     const agora = new Date();
     const dataValidade = new Date(licenca.data_validade);
+    const dataValidadeFormatada = dataValidade.toLocaleDateString('pt-BR');
 
-    // CASO 2: Chave EXPIRADA ou INATIVA
+    // 2. CASO: Chave EXPIRADA ou INATIVA
     if (agora > dataValidade || licenca.status !== 'ativa') {
-      // Atualiza o status para expirada se ainda não estiver
-      configData.licencas_detalhadas[indexLicenca].status = 'expirada';
-      configData.codigos_validos = codigosValidos.filter((code) => code !== chaveFormatada);
-
-      // Atualizar o Google Drive persistindo a remoção/expiração
-      await drive.files.update({
-        fileId,
-        media: {
-          mimeType: 'application/json',
-          body: JSON.stringify(configData, null, 2),
-        },
-      });
+      // Atualiza o status para expirada no Supabase se ainda não estiver
+      if (licenca.status !== 'expirada') {
+        await supabase
+          .from('licencas')
+          .update({ status: 'expirada' })
+          .eq('chave', chaveFormatada);
+      }
 
       return res.status(403).json({
         autorizado: false,
         status: 'expirada',
-        motivo: `Sua licença expirou em ${licenca.data_validade_formatada}. Adquira um novo acesso.`,
+        motivo: `Sua licença expirou em ${dataValidadeFormatada}. Adquira um novo acesso.`,
       });
     }
 
-    // CASO 3: Mecânica Anti-Compartilhamento (Vínculo de Device ID)
+    // 3. Mecânica Anti-Compartilhamento (Vínculo de Device ID)
     if (!licenca.device_id) {
       // Primeiro uso: Vincula esta chave permanentemente ao device_id atual
-      configData.licencas_detalhadas[indexLicenca].device_id = device_id;
-      
-      await drive.files.update({
-        fileId,
-        media: {
-          mimeType: 'application/json',
-          body: JSON.stringify(configData, null, 2),
-        },
-      });
+      await supabase
+        .from('licencas')
+        .update({ device_id: device_id })
+        .eq('chave', chaveFormatada);
     } else if (licenca.device_id !== device_id) {
-      // Tentativa de uso em outro computador
+      // Tentativa de uso em outro dispositivo
       return res.status(403).json({
         autorizado: false,
         motivo: 'Esta licença já está vinculada a outro usuário. O compartilhamento não é permitido.',
       });
     }
 
-    // CASO 4: Chave VÁLIDA e Dispositivo Autorizado -> Dispara o Webhook de sucesso
-    const isAdmin = licenca.admin === true;
+    // 4. CASO: Chave VÁLIDA e Dispositivo Autorizado -> Dispara o Webhook de sucesso
+    const isAdmin = licenca.administrador === true;
     const tipoUsuarioStr = isAdmin ? '👑 (Administrador)' : '👤 (Usuário)';
+    const nomeColab = licenca.colaboradores?.nome ? licenca.colaboradores.nome : 'Cliente';
+    const nomeUsuarioStr = `\n- Nome: ${nomeColab}`;
 
-    const nomeUsuario = licenca.nome ? `\n- Nome: ${licenca.nome}` : '';
-    await dispararWebhook(`🔑 **Acesso ao App Realizado** ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuario}\n- Validade: ${licenca.data_validade_formatada}`);
+    await dispararWebhook(`🔑 **Acesso ao App Realizado** ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuarioStr}\n- Validade: ${dataValidadeFormatada}`);
 
     return res.status(200).json({
       autorizado: true,
       status: 'ativa',
-      admin: isAdmin, // Propriedade nova enviada sem afetar propriedades antigas
-      usuario: licenca.nome,
-      validade: licenca.data_validade_formatada,
+      admin: isAdmin,
+      usuario: nomeColab,
+      validade: dataValidadeFormatada,
       mensagem: 'Acesso autorizado.',
     });
+
   } catch (error) {
     console.error('Erro ao validar chave:', error);
     return res.status(500).json({ autorizado: false, motivo: 'Erro interno no servidor de validação.' });
