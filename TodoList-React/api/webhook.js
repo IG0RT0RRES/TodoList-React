@@ -1,6 +1,5 @@
 import Stripe from 'stripe';
-import { google } from 'googleapis';
-import { acquireLock, releaseLock } from '../lib/redisLock.js';
+import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -18,20 +17,6 @@ function getRawBody(req) {
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', (err) => reject(err));
   });
-}
-
-function getDriveService() {
-  const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!credsJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não definida.');
-
-  const credsDict = typeof credsJson === 'string' ? JSON.parse(credsJson) : credsJson;
-
-  const auth = new google.auth.GoogleAuth({
-    credentials: credsDict,
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  });
-
-  return google.drive({ version: 'v3', auth });
 }
 
 function gerarChave() {
@@ -95,7 +80,7 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
   const titulo = isRenovacao ? 'Licença Renovada (+30 Dias)' : 'Nova Licença Gerada (30 Dias)';
   const descricao = isRenovacao
     ? 'Um pagamento de renovação foi processado e a validade da chave existente foi estendida.'
-    : 'Um novo colaborador foi cadastrado e os arquivos do Drive foram atualizados.';
+    : 'Um novo colaborador foi cadastrado e salvo no Supabase.';
 
   const payload = {
     username: 'Stripe Pix Bot',
@@ -131,7 +116,7 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
-    return res.status(200).json({ status: 'active', message: 'Webhook endpoint running' });
+    return res.status(200).json({ status: 'active', message: 'Webhook Supabase endpoint running' });
   }
 
   if (req.method !== 'POST') {
@@ -181,16 +166,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: 'ignored', reason: 'Missing customer identification metadata' });
     }
 
-    const LOCK_KEY = 'lock:stripe_webhook_drive_dual';
-    const lockToken = await acquireLock(LOCK_KEY, 30000);
-
-    if (!lockToken) {
-      return res.status(429).json({
-        status: 'error',
-        message: 'Outra requisição está atualizando as licenças no momento.'
-      });
-    }
-
     try {
       const whatsapp = 
         metadata.whatsapp || 
@@ -198,119 +173,103 @@ export default async function handler(req, res) {
         objectData.shipping?.phone || 
         '';
 
-      const colaboradorFormatado = matricula ? `${matricula} - ${nome.toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-      const fileIdLicenses = process.env.GOOGLE_DRIVE_FILE_ID_LICENCES;
-      const fileIdConfig = process.env.GOOGLE_DRIVE_FILE_ID;
-      const drive = getDriveService();
-
-      // 1. Ler licenses.json
-      const streamLicenses = await drive.files.get({ fileId: fileIdLicenses, alt: 'media' }, { responseType: 'text' });
-      let licensesData = {};
-      try {
-        licensesData = typeof streamLicenses.data === 'string' ? JSON.parse(streamLicenses.data) : streamLicenses.data;
-      } catch (e) {
-        licensesData = { codigos_validos: [], licencas_detalhadas: [] };
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error('Credenciais do Supabase ausentes no servidor.');
       }
 
-      if (!Array.isArray(licensesData.codigos_validos)) licensesData.codigos_validos = [];
-      if (!Array.isArray(licensesData.licencas_detalhadas)) licensesData.licencas_detalhadas = [];
+      const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // 2. Ler Config.json
-      const streamConfig = await drive.files.get({ fileId: fileIdConfig, alt: 'media' }, { responseType: 'text' });
-      let configData = {};
-      try {
-        configData = typeof streamConfig.data === 'string' ? JSON.parse(streamConfig.data) : streamConfig.data;
-      } catch (e) {
-        configData = { supervisores: [], colaboradores: [], equipes: [], projetos: [] };
+      // 1. Garantir ou inserir o colaborador na tabela "colaboradores"
+      let colaboradorId = null;
+
+      if (matricula) {
+        // Tenta buscar pelo registro existente com essa matrícula
+        const { data: colabExistente } = await supabase
+          .from('colaboradores')
+          .select('id')
+          .eq('matricula', matricula.trim())
+          .single();
+
+        if (colabExistente) {
+          colaboradorId = colabExistente.id;
+        } else {
+          // Insere novo colaborador
+          const { data: novoColab, error: errColab } = await supabase
+            .from('colaboradores')
+            .insert([{ matricula: matricula.trim(), nome: (nome || 'Cliente').toUpperCase() }])
+            .select('id')
+            .single();
+
+          if (!errColab && novoColab) {
+            colaboradorId = novoColab.id;
+          }
+        }
       }
 
-      if (!Array.isArray(configData.colaboradores)) configData.colaboradores = [];
+      // 2. Verificar se já existe uma licença ativa para este cliente (por matrícula ou e-mail)
+      let queryLicenca = supabase.from('licencas').select('*, colaboradores(matricula, nome)');
+      
+      if (matricula) {
+        // Se tem matrícula, podemos buscar cruzando com o colaborador ou se houver campo correspondente
+        queryLicenca = queryLicenca.eq('colaborador_id', colaboradorId);
+      } else if (customerEmail && customerEmail !== 'Cliente desconhecido') {
+        queryLicenca = queryLicenca.eq('whatsapp', whatsapp); // ou outro campo de identificação se preferir
+      }
 
-      // Verificar se cliente já existe nas licenças
-      const clienteExistente = licensesData.licencas_detalhadas.find(
-        (item) =>
-          (matricula && item.matricula && item.matricula.trim() === matricula.trim()) ||
-          (customerEmail && customerEmail !== 'Cliente desconhecido' && item.email === customerEmail)
-      );
+      const { data: licencasEncontradas } = await queryLicenca;
+      const licencaExistente = licencasEncontradas && licencasEncontradas.length > 0 ? licencasEncontradas[0] : null;
 
       let chaveUso = '';
       let isRenovacao = false;
       const agora = new Date();
       let novaDataValidade = new Date();
 
-      if (clienteExistente) {
+      if (licencaExistente) {
         isRenovacao = true;
-        chaveUso = clienteExistente.chave;
-
-        const dataValidadeAtual = new Date(clienteExistente.data_validade);
+        chaveUso = licencaExistente.chave;
+        const dataValidadeAtual = new Date(licencaExistente.data_validade);
 
         if (dataValidadeAtual.getFullYear() >= 2099) {
           novaDataValidade = dataValidadeAtual;
-          clienteExistente.status = 'ativa';
         } else {
           const dataBase = dataValidadeAtual > agora ? dataValidadeAtual : agora;
           novaDataValidade = new Date(dataBase);
           novaDataValidade.setDate(novaDataValidade.getDate() + 30);
-
-          clienteExistente.data_validade = novaDataValidade.toISOString();
-          clienteExistente.data_validade_formatada = novaDataValidade.toLocaleDateString('pt-BR');
-          clienteExistente.status = 'ativa';
         }
 
-        if (!licensesData.codigos_validos.includes(chaveUso)) {
-          licensesData.codigos_validos.push(chaveUso);
-        }
+        // Atualiza a validade e status no Supabase
+        await supabase
+          .from('licencas')
+          .update({
+            data_validade: novaDataValidade.toISOString(),
+            status: 'ativa'
+          })
+          .eq('chave', chaveUso);
+
       } else {
+        // Nova licença
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + 30);
 
-        licensesData.codigos_validos.push(chaveUso);
-
-        licensesData.licencas_detalhadas.push({
+        await supabase.from('licencas').insert([{
+          colaborador_id: colaboradorId,
           chave: chaveUso,
-          matricula,
-          colaborador: colaboradorFormatado,
-          nome: nome || 'Cliente',
-          email: customerEmail || 'Cliente desconhecido',
-          whatsapp,
-          device_id: null,
           data_aquisicao: agora.toISOString(),
           data_validade: novaDataValidade.toISOString(),
-          data_aquisicao_formatada: agora.toLocaleDateString('pt-BR'),
-          data_validade_formatada: novaDataValidade.toLocaleDateString('pt-BR'),
-          dias_validade: 30,
           status: 'ativa',
-          admin: false, // Novos cadastros via Stripe nascem como não-admin por segurança
-        });
-      }
-
-      // Adiciona o colaborador no Config.json caso ainda não exista
-      if (!configData.colaboradores.includes(colaboradorFormatado)) {
-        configData.colaboradores.push(colaboradorFormatado);
+          whatsapp: whatsapp || null,
+          administrador: false
+        }]);
       }
 
       const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
+      const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-      // Salvar atualizações no Google Drive (ambos os arquivos)
-      await Promise.all([
-        drive.files.update({
-          fileId: fileIdLicenses,
-          media: {
-            mimeType: 'application/json',
-            body: JSON.stringify(licensesData, null, 2),
-          },
-        }),
-        drive.files.update({
-          fileId: fileIdConfig,
-          media: {
-            mimeType: 'application/json',
-            body: JSON.stringify(configData, null, 2),
-          },
-        })
-      ]);
-
+      // 3. Disparar notificações em segundo plano (WhatsApp e Discord)
       await Promise.all([
         enviarWhatsapp(whatsapp, nome || 'Cliente', chaveUso, dataValidadeFormatada, isRenovacao).catch(() => {}),
         enviarWebhookDiscord(
@@ -331,14 +290,12 @@ export default async function handler(req, res) {
         license: chaveUso,
         valid_until: dataValidadeFormatada,
       });
+
     } catch (ex) {
-      console.error('Erro no processamento do webhook:', ex);
+      console.error('Erro no processamento do webhook com Supabase:', ex);
       return res.status(500).json({ status: 'error', detalhe: ex.message });
-    } finally {
-      await releaseLock(LOCK_KEY, lockToken);
     }
   }
 
   return res.status(200).json({ status: 'ignored', event: eventType });
-        }
-          
+}
