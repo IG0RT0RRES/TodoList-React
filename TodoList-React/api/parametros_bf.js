@@ -33,7 +33,7 @@ export default async function handler(req, res) {
     // Opcional: Você pode buscar a versão mínima de uma tabela de configurações do Supabase se preferir gerenciar via banco.
     // Exemplo: const { data: configApp } = await supabase.from('configuracoes_app').select('*').single();
     // Caso contrário, definimos os valores padrão de controle aqui:
-    const versao_minima = "1.2.0"; // Altere para "1.2.0" quando quiser obrigar os usuários a atualizarem
+    const versao_minima = "1.1.0"; // Altere para "1.2.0" quando quiser obrigar os usuários a atualizarem
     const url_loja = "https://github.com/IG0RT0RRES"; // Link direto para baixar a nova versão ou GitHub/Release
 
     // Mapeia os dados para o formato original
