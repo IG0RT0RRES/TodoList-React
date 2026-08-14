@@ -58,10 +58,17 @@ export default async function handler(req, res) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 1. Buscar a licença no Supabase junto com os dados e preferências do colaborador
+    // Seleciona explicitamente os campos da licença (incluindo 'tipo') e os dados do colaborador
     const { data: licenca, error: fetchError } = await supabase
       .from('licencas')
       .select(`
-        *,
+        id,
+        chave,
+        status,
+        data_validade,
+        device_id,
+        admin,
+        tipo,
         colaboradores (
           id,
           nome,
@@ -115,9 +122,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // 4. Mapeia corretamente a flag de administrador vinda da coluna 'admin'
+    // 4. Mapeia a flag de administrador e o tipo de licença
     const isAdmin = Boolean(licenca.admin);
-    const tipoUsuarioStr = isAdmin ? '👑 (Administrador)' : '👤 (Usuário)';
+    const tipoLicenca = licenca.tipo || 'mensal'; // Fallback para 'mensal' se não houver valor
+    const tipoUsuarioStr = isAdmin ? '👑 (Administrador)' : `👤 (Usuário - ${tipoLicenca.toUpperCase()})`;
     
     // Obtém o nome e a matrícula relacionados
     const nomeColab = licenca.colaboradores?.nome ? licenca.colaboradores.nome : 'Cliente';
@@ -143,6 +151,7 @@ export default async function handler(req, res) {
       autorizado: true,
       status: 'ativa',
       admin: isAdmin, 
+      tipo: tipoLicenca, // Envia o tipo ("teste", "mensal", "anual", etc.) para o Flet
       usuario: usuarioCompleto,
       nome_colaborador: nomeColab,
       matricula_colaborador: matriculaColab,
