@@ -5,7 +5,7 @@ import DeveloperProfile from './components/DeveloperProfile'
 import AuthForm from './components/AuthForm'
 import LeaderBoard from './components/LeaderBoard'
 import ExclusaoDeDados from './components/ExclusaoDeDados'
-{/*import Payments from './components/Payments'*/}
+import Payments from './components/Payments'
 
 function App() {
   return (
@@ -19,7 +19,7 @@ function App() {
               <Route path="/Cadastro" element={<AuthForm/>}/>
               <Route path="/LeaderBoard" element={<LeaderBoard/>}/>
               <Route path="/Exclusao" element={<ExclusaoDeDados/>}/>
-              {/*<Route path="/Pagamentos" element={<Payments/>}/>*/}
+              <Route path="/Pagamentos" element={<Payments/>}/>
             </Routes>
           </BrowserRouter>
         </div>)
