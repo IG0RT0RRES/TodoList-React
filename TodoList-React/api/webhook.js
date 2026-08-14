@@ -228,6 +228,9 @@ export default async function handler(req, res) {
       diasValidade = 3;
     }
 
+    // Define a string que será salva na coluna "tipo" do banco de dados
+    const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
+
     const isDadosInvalidos = (!customerEmail || customerEmail === 'Cliente desconhecido') && !nome && !matricula;
     if (isDadosInvalidos) {
       console.warn('⚠️ Webhook ignorado: Evento do Stripe sem dados identificáveis do cliente.');
@@ -335,7 +338,8 @@ export default async function handler(req, res) {
           .from('licencas')
           .update({
             data_validade: novaDataValidade.toISOString(),
-            status: 'ativa'
+            status: 'ativa',
+            tipo: tipoLicenca // Atualiza também o tipo na renovação (se migrou de degustacao -> mensal)
           })
           .eq('chave', chaveUso);
 
@@ -355,6 +359,7 @@ export default async function handler(req, res) {
           data_aquisicao: agora.toISOString(),
           data_validade: novaDataValidade.toISOString(),
           status: 'ativa',
+          tipo: tipoLicenca, // Grava 'degustacao' ou 'mensal'
           whatsapp: whatsapp || null,
           admin: false
         }]);
