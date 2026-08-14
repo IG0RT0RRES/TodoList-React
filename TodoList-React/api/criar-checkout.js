@@ -30,7 +30,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
     }
 
-    // Criação da Checkout Session com redirecionamento direto para o WhatsApp após a conclusão ou cancelamento
+    // Criação da Checkout Session com o campo de cupom liberado
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'boleto'],
       line_items: [
@@ -41,12 +41,16 @@ export default async function handler(req, res) {
               name: 'Licença de Acesso - Gestor de Baixas',
               description: `Ativação para a matrícula ${matricula}`,
             },
-            unit_amount: 1000, // R$ 10,00 em centavos
+            unit_amount: 1500, // R$ 10,00 em centavos
           },
           quantity: 1,
         },
       ],
       mode: 'payment',
+
+      // 🎟️ HABILITA O CAMPO DE CÓDIGO PROMOCIONAL/CUPOM NO CHECKOUT
+      allow_promotion_codes: true,
+
       customer_email: email,
       success_url: `https://wa.me/5521969254192?text=Pagamento%20realizado%20com%20sucesso!%20Matricula:%20${encodeURIComponent(matricula)}`,
       cancel_url: `https://wa.me/5521969254192?text=O%20pagamento%20da%20licenca%20foi%20cancelado.`,
