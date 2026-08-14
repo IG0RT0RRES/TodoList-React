@@ -113,16 +113,22 @@ export default async function handler(req, res) {
     // 4. Mapeia corretamente a flag de administrador vinda da coluna 'admin'
     const isAdmin = Boolean(licenca.admin);
     const tipoUsuarioStr = isAdmin ? '👑 (Administrador)' : '👤 (Usuário)';
+    
+    // Obtém o nome e a matrícula relacionados
     const nomeColab = licenca.colaboradores?.nome ? licenca.colaboradores.nome : 'Cliente';
-    const nomeUsuarioStr = `\n- Nome: ${nomeColab}`;
+    const matriculaColab = licenca.colaboradores?.matricula ? licenca.colaboradores.matricula : '';
+    
+    // Monta a string no formato esperado pelo app Python ("MATRICULA - NOME")
+    const usuarioCompleto = matriculaColab ? `${matriculaColab} - ${nomeColab}` : nomeColab;
+    const nomeUsuarioStr = `\n- Nome: ${nomeColab} (${matriculaColab})`;
 
     await dispararWebhook(`🔑 **Acesso ao App Realizado** ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuarioStr}\n- Validade: ${dataValidadeFormatada}`);
 
     return res.status(200).json({
       autorizado: true,
       status: 'ativa',
-      admin: isAdmin, // Garante o envio explícito para o app Flet
-      usuario: nomeColab,
+      admin: isAdmin, 
+      usuario: usuarioCompleto, // Retorna "MATRICULA - NOME" corretamente para o app
       validade: dataValidadeFormatada,
       mensagem: 'Acesso autorizado.',
     });
