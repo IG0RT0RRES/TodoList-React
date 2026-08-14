@@ -88,7 +88,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
     service_id: serviceId,
     template_id: templateId,
     user_id: publicKey,
-    accessToken: privateKey,
+    ...(privateKey && { accessToken: privateKey }),
     template_params: {
       to_email: customerEmail,
       to_name: nome,
@@ -224,30 +224,56 @@ export default async function handler(req, res) {
 
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // 1. Garantir ou inserir o colaborador na tabela "colaboradores" com upsert seguro
+      // 1. Garantir ou buscar o colaborador na tabela "colaboradores" sem duplicar e-mail ou matrícula
       let colaboradorId = null;
 
-      if (matricula) {
-        const { data: colabData, error: colabError } = await supabase
-          .from('colaboradores')
-          .upsert({
-            matricula: matricula.trim(),
+      if (matricula || customerEmail) {
+        // Tenta buscar por matrícula ou por e-mail
+        let queryColab = supabase.from('colaboradores').select('id, matricula, email');
+        
+        if (matricula) {
+          queryColab = queryColab.eq('matricula', matricula.trim());
+        } else if (customerEmail) {
+          queryColab = queryColab.eq('email', customerEmail.trim());
+        }
+
+        const { data: colabExistente } = await queryColab.maybeSingle();
+
+        if (colabExistente) {
+          colaboradorId = colabExistente.id;
+          
+          // Atualiza dados cadastrais caso o colaborador já exista
+          await supabase.from('colaboradores').update({
             nome: (nome || 'Cliente').toUpperCase(),
-            email: customerEmail || metadata.email || null,
+            email: customerEmail || colabExistente.email,
             equipe: metadata.equipe || null,
             projeto: metadata.projeto || null,
             supervisor: metadata.supervisor || null
-          }, { onConflict: 'matricula' })
-          .select('id')
-          .single();
+          }).eq('id', colaboradorId);
 
-        if (colabError) {
-          console.error("Erro ao salvar colaborador no Supabase:", colabError);
-          throw new Error("Erro ao salvar colaborador: " + colabError.message);
-        }
+        } else {
+          // Insere um novo colaborador
+          const { data: novoColab, error: colabError } = await supabase
+            .from('colaboradores')
+            .insert([{
+              matricula: matricula ? matricula.trim() : `TEMP_${Date.now()}`,
+              nome: (nome || 'Cliente').toUpperCase(),
+              email: customerEmail || null,
+              equipe: metadata.equipe || null,
+              projeto: metadata.projeto || null,
+              supervisor: metadata.supervisor || null
+            }])
+            .select('id')
+            .single();
 
-        if (colabData) {
-          colaboradorId = colabData.id;
+          if (colabError) {
+            console.error("Erro ao salvar colaborador no Supabase:", colabError);
+            throw new Error("Erro ao salvar colaborador: " + colabError.message);
+          }
+
+          if (novoColab) {
+            colaboradorId = novoColab.id;
+          }
         }
       }
 
