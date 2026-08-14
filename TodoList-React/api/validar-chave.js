@@ -57,14 +57,19 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Buscar a licença no Supabase junto com os dados do colaborador
+    // 1. Buscar a licença no Supabase junto com os dados do colaborador e preferências
+    // (Nota: Se suas colunas de preferência estiverem na tabela 'colaboradores', inclua-os no select abaixo)
     const { data: licenca, error: fetchError } = await supabase
       .from('licencas')
       .select(`
         *,
         colaboradores (
           nome,
-          matricula
+          matricula,
+          supervisor_pref,
+          colaborador_pref,
+          equipe_pref,
+          projeto_pref
         )
       `)
       .eq('chave', chaveFormatada)
@@ -122,6 +127,16 @@ export default async function handler(req, res) {
     const usuarioCompleto = matriculaColab ? `${matriculaColab} - ${nomeColab}` : nomeColab;
     const nomeUsuarioStr = `\n- Nome: ${nomeColab} (${matriculaColab})`;
 
+    // Captura as preferências salvas no banco (se existirem, caso contrário define string vazia)
+    // Ajuste se os campos estiverem diretamente na tabela 'licencas' (ex: licenca.supervisor_pref)
+    const colabRelacionado = licenca.colaboradores || {};
+    const preferenciasSalvas = {
+      supervisor: colabRelacionado.supervisor_pref || licenca.supervisor_pref || "",
+      colaborador: colabRelacionado.colaborador_pref || licenca.colaborador_pref || "",
+      equipe: colabRelacionado.equipe_pref || licenca.equipe_pref || "",
+      projeto: colabRelacionado.projeto_pref || licenca.projeto_pref || ""
+    };
+
     await dispararWebhook(`🔑 **Acesso ao App Realizado** ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuarioStr}\n- Validade: ${dataValidadeFormatada}`);
 
     return res.status(200).json({
@@ -130,6 +145,7 @@ export default async function handler(req, res) {
       admin: isAdmin, 
       usuario: usuarioCompleto, // Retorna "MATRICULA - NOME" corretamente para o app
       validade: dataValidadeFormatada,
+      preferencias: preferenciasSalvas, // <- Enviando as preferências para o app preencher os campos automaticamente
       mensagem: 'Acesso autorizado.',
     });
 
