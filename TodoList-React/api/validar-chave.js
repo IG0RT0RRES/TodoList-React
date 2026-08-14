@@ -57,19 +57,19 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Buscar a licença no Supabase junto com os dados do colaborador e preferências
-    // (Nota: Se suas colunas de preferência estiverem na tabela 'colaboradores', inclua-os no select abaixo)
+    // 1. Buscar a licença no Supabase junto com os dados e preferências do colaborador
     const { data: licenca, error: fetchError } = await supabase
       .from('licencas')
       .select(`
         *,
         colaboradores (
+          id,
           nome,
           matricula,
-          supervisor_pref,
-          colaborador_pref,
-          equipe_pref,
-          projeto_pref
+          email,
+          equipe,
+          projeto,
+          supervisor
         )
       `)
       .eq('chave', chaveFormatada)
@@ -127,14 +127,13 @@ export default async function handler(req, res) {
     const usuarioCompleto = matriculaColab ? `${matriculaColab} - ${nomeColab}` : nomeColab;
     const nomeUsuarioStr = `\n- Nome: ${nomeColab} (${matriculaColab})`;
 
-    // Captura as preferências salvas no banco (se existirem, caso contrário define string vazia)
-    // Ajuste se os campos estiverem diretamente na tabela 'licencas' (ex: licenca.supervisor_pref)
-    const colabRelacionado = licenca.colaboradores || {};
+    // Extrai as preferências salvas na tabela de colaboradores para preenchimento automático no app
+    const colab = licenca.colaboradores || {};
     const preferenciasSalvas = {
-      supervisor: colabRelacionado.supervisor_pref || licenca.supervisor_pref || "",
-      colaborador: colabRelacionado.colaborador_pref || licenca.colaborador_pref || "",
-      equipe: colabRelacionado.equipe_pref || licenca.equipe_pref || "",
-      projeto: colabRelacionado.projeto_pref || licenca.projeto_pref || ""
+      supervisor: colab.supervisor || "",
+      colaborador: usuarioCompleto,
+      equipe: colab.equipe || "",
+      projeto: colab.projeto || ""
     };
 
     await dispararWebhook(`🔑 **Acesso ao App Realizado** ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuarioStr}\n- Validade: ${dataValidadeFormatada}`);
@@ -143,9 +142,9 @@ export default async function handler(req, res) {
       autorizado: true,
       status: 'ativa',
       admin: isAdmin, 
-      usuario: usuarioCompleto, // Retorna "MATRICULA - NOME" corretamente para o app
+      usuario: usuarioCompleto,
       validade: dataValidadeFormatada,
-      preferencias: preferenciasSalvas, // <- Enviando as preferências para o app preencher os campos automaticamente
+      preferencias: preferenciasSalvas, // <- Envia as preferências salvas no banco direto para o cliente
       mensagem: 'Acesso autorizado.',
     });
 
