@@ -115,26 +115,37 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
   }
 }
 
-async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao) {
+async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao, isDegustacao) {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
 
-  const titulo = isRenovacao ? 'Licença Renovada (+30 Dias)' : 'Nova Licença Gerada (30 Dias)';
-  const descricao = isRenovacao
-    ? 'Um pagamento de renovação foi processado e a validade da chave existente foi estendida.'
-    : 'Um novo colaborador foi cadastrado e salvo no Supabase.';
+  let titulo = 'Nova Licença Gerada (30 Dias)';
+  let descricao = 'Um novo colaborador foi cadastrado e salvo no Supabase.';
+  let cor = 16711680; // Vermelho/Laranja
+
+  if (isDegustacao) {
+    titulo = '🎁 Licença de Degustação Gerada (3 Dias)';
+    descricao = 'Cupom CAD2026 aplicado! Licença de teste grátis gerada para o colaborador.';
+    cor = 3447003; // Azul
+  } else if (isRenovacao) {
+    titulo = 'Licença Renovada (+30 Dias)';
+    descricao = 'Um pagamento de renovação foi processado e a validade da chave existente foi estendida.';
+    cor = 3066993; // Verde
+  }
+
+  const tipoTexto = isDegustacao ? 'Degustação (3 Dias)' : (isRenovacao ? 'Renovação' : 'Novo Colaborador');
 
   const payload = {
     username: 'Stripe Pix Bot',
-    content: isRenovacao ? 'Renovação de licença concluída!' : 'Novo pagamento e acesso liberado!',
+    content: isDegustacao ? '🎁 Novo teste grátis ativado!' : (isRenovacao ? 'Renovação de licença concluída!' : 'Novo pagamento e acesso liberado!'),
     embeds: [
       {
         title: titulo,
         description: descricao,
-        color: isRenovacao ? 3066993 : 16711680,
+        color: cor,
         fields: [
           { name: 'Código de Acesso', value: licenseKey, inline: true },
-          { name: 'Tipo', value: isRenovacao ? 'Renovação' : 'Novo Colaborador', inline: true },
+          { name: 'Tipo', value: tipoTexto, inline: true },
           { name: 'Colaborador', value: matriculaFormatada || nome, inline: false },
           { name: 'WhatsApp', value: whatsapp || 'Não informado', inline: true },
           { name: 'E-mail', value: customerEmail, inline: true },
@@ -200,6 +211,21 @@ export default async function handler(req, res) {
       customerEmail = objectData.receipt_email;
     } else if (metadata.email) {
       customerEmail = metadata.email;
+    }
+
+    // 🔍 Identifica se o cupom CAD2026 foi aplicado no checkout
+    let diasValidade = 30;
+    let isDegustacao = false;
+
+    if (objectData.total_details?.breakdown?.discounts) {
+      const discounts = objectData.total_details.breakdown.discounts;
+      isDegustacao = discounts.some(d => d.discount?.coupon?.id === 'CAD2026');
+    } else if (objectData.discount?.coupon?.id === 'CAD2026') {
+      isDegustacao = true;
+    }
+
+    if (isDegustacao) {
+      diasValidade = 3;
     }
 
     const isDadosInvalidos = (!customerEmail || customerEmail === 'Cliente desconhecido') && !nome && !matricula;
@@ -302,7 +328,7 @@ export default async function handler(req, res) {
         } else {
           const dataBase = dataValidadeAtual > agora ? dataValidadeAtual : agora;
           novaDataValidade = new Date(dataBase);
-          novaDataValidade.setDate(novaDataValidade.getDate() + 30);
+          novaDataValidade.setDate(novaDataValidade.getDate() + diasValidade);
         }
 
         const { error: updateError } = await supabase
@@ -319,8 +345,9 @@ export default async function handler(req, res) {
         }
 
       } else {
+        // Nova licença (Normal de 30 dias ou Degustação de 3 dias)
         chaveUso = gerarChave();
-        novaDataValidade.setDate(agora.getDate() + 30);
+        novaDataValidade.setDate(agora.getDate() + diasValidade);
 
         const { error: insertLicencaError } = await supabase.from('licencas').insert([{
           colaborador_id: colaboradorId,
@@ -342,6 +369,7 @@ export default async function handler(req, res) {
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
       const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
+      // 3. Disparo de Notificações
       await Promise.all([
         enviarWhatsapp(whatsapp, nome || 'Cliente', chaveUso, dataValidadeFormatada, isRenovacao).catch(() => {}),
         enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada).catch(() => {}),
@@ -353,13 +381,14 @@ export default async function handler(req, res) {
           whatsapp,
           dataAquisicaoFormatada,
           dataValidadeFormatada,
-          isRenovacao
+          isRenovacao,
+          isDegustacao
         ).catch(() => {}),
       ]);
 
       return res.status(200).json({
         status: 'success',
-        tipo: isRenovacao ? 'renovacao' : 'novo_colaborador',
+        tipo: isDegustacao ? 'degustacao' : (isRenovacao ? 'renovacao' : 'novo_colaborador'),
         license: chaveUso,
         valid_until: dataValidadeFormatada,
       });
