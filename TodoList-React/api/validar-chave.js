@@ -122,6 +122,7 @@ export default async function handler(req, res) {
     // Obtém o nome e a matrícula relacionados
     const nomeColab = licenca.colaboradores?.nome ? licenca.colaboradores.nome : 'Cliente';
     const matriculaColab = licenca.colaboradores?.matricula ? licenca.colaboradores.matricula : '';
+    const emailColab = licenca.colaboradores?.email ? licenca.colaboradores.email : '';
     
     // Monta a string no formato esperado pelo app Python ("MATRICULA - NOME")
     const usuarioCompleto = matriculaColab ? `${matriculaColab} - ${nomeColab}` : nomeColab;
@@ -143,8 +144,11 @@ export default async function handler(req, res) {
       status: 'ativa',
       admin: isAdmin, 
       usuario: usuarioCompleto,
+      nome_colaborador: nomeColab,
+      matricula_colaborador: matriculaColab,
+      email_colaborador: emailColab,
       validade: dataValidadeFormatada,
-      preferencias: preferenciasSalvas, // <- Envia as preferências salvas no banco direto para o cliente
+      preferencias: preferenciasSalvas,
       mensagem: 'Acesso autorizado.',
     });
 
