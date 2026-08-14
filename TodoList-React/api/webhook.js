@@ -88,7 +88,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
     service_id: serviceId,
     template_id: templateId,
     user_id: publicKey,
-    ...(privateKey && { accessToken: privateKey }),
+    accessToken: privateKey,
     template_params: {
       to_email: customerEmail,
       to_name: nome,
