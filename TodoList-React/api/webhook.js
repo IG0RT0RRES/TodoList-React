@@ -73,6 +73,48 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
   }
 }
 
+async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormatada) {
+  const serviceId = process.env.EMAILJS_SERVICE_ID;
+  const templateId = process.env.EMAILJS_TEMPLATE_ID;
+  const publicKey = process.env.EMAILJS_PUBLIC_KEY;
+  const privateKey = process.env.EMAILJS_PRIVATE_KEY;
+
+  if (!serviceId || !templateId || !publicKey) return;
+  if (!customerEmail) return;
+
+  const emailJsUrl = 'https://api.emailjs.com/api/v1.0/email/send';
+
+  const payload = {
+    service_id: serviceId,
+    template_id: templateId,
+    user_id: publicKey,
+    ...(privateKey && { accessToken: privateKey }),
+    template_params: {
+      to_email: customerEmail,
+      to_name: nome,
+      license_key: licenseKey,
+      validade: dataValidadeFormatada
+    }
+  };
+
+  try {
+    const response = await fetch(emailJsUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Erro na resposta do EmailJS:', response.status, errorText);
+    }
+  } catch (error) {
+    console.error('❌ Erro na requisição para EmailJS:', error);
+  }
+}
+
 async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao) {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
@@ -150,7 +192,7 @@ export default async function handler(req, res) {
 
     const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || '';
     const matricula = metadata.matricula || '';
-    
+
     let customerEmail = '';
     if (objectData.customer_details?.email) {
       customerEmail = objectData.customer_details.email;
@@ -211,7 +253,7 @@ export default async function handler(req, res) {
 
       // 2. Verificar se já existe uma licença ativa para este cliente
       let queryLicenca = supabase.from('licencas').select('*, colaboradores(matricula, nome)');
-      
+
       if (colaboradorId) {
         queryLicenca = queryLicenca.eq('colaborador_id', colaboradorId);
       } else if (whatsapp) {
@@ -278,9 +320,10 @@ export default async function handler(req, res) {
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
       const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-      // 3. Disparar notificações em segundo plano (WhatsApp e Discord)
+      // 3. Disparar notificações em segundo plano (WhatsApp, EmailJS e Discord)
       await Promise.all([
         enviarWhatsapp(whatsapp, nome || 'Cliente', chaveUso, dataValidadeFormatada, isRenovacao).catch(() => {}),
+        enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada).catch(() => {}),
         enviarWebhookDiscord(
           chaveUso,
           customerEmail || 'Não informado',
