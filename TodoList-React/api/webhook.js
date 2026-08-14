@@ -224,25 +224,24 @@ export default async function handler(req, res) {
 
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // 1. Garantir ou buscar o colaborador na tabela "colaboradores" sem duplicar e-mail ou matrícula
+      // 1. Garantir ou buscar o colaborador na tabela "colaboradores" (evitando erro de duplicidade)
       let colaboradorId = null;
 
       if (matricula || customerEmail) {
-        // Tenta buscar por matrícula ou por e-mail
-        let queryColab = supabase.from('colaboradores').select('id, matricula, email');
-        
-        if (matricula) {
-          queryColab = queryColab.eq('matricula', matricula.trim());
-        } else if (customerEmail) {
-          queryColab = queryColab.eq('email', customerEmail.trim());
-        }
+        const filtros = [];
+        if (matricula) filtros.push(`matricula.eq.${matricula.trim()}`);
+        if (customerEmail) filtros.push(`email.eq.${customerEmail.trim()}`);
 
-        const { data: colabExistente } = await queryColab.maybeSingle();
+        const { data: colabsEncontrados } = await supabase
+          .from('colaboradores')
+          .select('id, matricula, email')
+          .or(filtros.join(','));
+
+        const colabExistente = colabsEncontrados && colabsEncontrados.length > 0 ? colabsEncontrados[0] : null;
 
         if (colabExistente) {
           colaboradorId = colabExistente.id;
           
-          // Atualiza dados cadastrais caso o colaborador já exista
           await supabase.from('colaboradores').update({
             nome: (nome || 'Cliente').toUpperCase(),
             email: customerEmail || colabExistente.email,
@@ -252,7 +251,6 @@ export default async function handler(req, res) {
           }).eq('id', colaboradorId);
 
         } else {
-          // Insere um novo colaborador
           const { data: novoColab, error: colabError } = await supabase
             .from('colaboradores')
             .insert([{
@@ -307,7 +305,6 @@ export default async function handler(req, res) {
           novaDataValidade.setDate(novaDataValidade.getDate() + 30);
         }
 
-        // Atualiza a validade e status no Supabase
         const { error: updateError } = await supabase
           .from('licencas')
           .update({
@@ -322,7 +319,6 @@ export default async function handler(req, res) {
         }
 
       } else {
-        // Nova licença gerada corretamente vinculada ao colaborador
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + 30);
 
@@ -346,7 +342,6 @@ export default async function handler(req, res) {
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
       const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-      // 3. Disparar notificações em segundo plano (WhatsApp, EmailJS e Discord)
       await Promise.all([
         enviarWhatsapp(whatsapp, nome || 'Cliente', chaveUso, dataValidadeFormatada, isRenovacao).catch(() => {}),
         enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada).catch(() => {}),
