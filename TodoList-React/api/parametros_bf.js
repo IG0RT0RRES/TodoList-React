@@ -30,7 +30,13 @@ export default async function handler(req, res) {
     const { data: colaboradoresData, error: errColab } = await supabase.from('colaboradores').select('matricula, nome');
     if (errColab) throw new Error(`Erro em colaboradores: ${errColab.message}`);
 
-    // Mapeia os dados para o formato original do config.json
+    // Opcional: Você pode buscar a versão mínima de uma tabela de configurações do Supabase se preferir gerenciar via banco.
+    // Exemplo: const { data: configApp } = await supabase.from('configuracoes_app').select('*').single();
+    // Caso contrário, definimos os valores padrão de controle aqui:
+    const versao_minima = "1.1.0"; // Altere para "1.2.0" quando quiser obrigar os usuários a atualizarem
+    const url_loja = "https://github.com/IG0RT0RRES"; // Link direto para baixar a nova versão ou GitHub/Release
+
+    // Mapeia os dados para o formato original
     const supervisores = (supervisoresData || []).map(item => item.nome);
     const equipes = (equipesData || []).map(item => item.nome);
     const projetos = (projetosData || []).map(item => item.nome);
@@ -44,7 +50,9 @@ export default async function handler(req, res) {
       supervisores,
       colaboradores,
       equipes,
-      projetos
+      projetos,
+      versao_minima,
+      url_loja
     });
 
   } catch (err) {
