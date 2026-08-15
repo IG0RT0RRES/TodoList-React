@@ -17,7 +17,24 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Busca as tabelas individualmente
+    // 1. Busca as configurações globais do app (versão, manutenção, etc.)
+    const { data: configApp, error: errConfig } = await supabase
+      .from('configuracoes_app')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (errConfig) {
+      console.warn(`Aviso ao buscar configuracoes_app: ${errConfig.message}`);
+    }
+
+    // Valores retornados do banco com fallback padrão caso a tabela esteja vazia
+    const versao_minima = configApp?.versao_minima || "1.1.0";
+    const url_loja = configApp?.url_loja || "https://github.com/IG0RT0RRES";
+    const modo_manutencao = configApp?.modo_manutencao ?? false;
+    const mensagem_manutencao = configApp?.mensagem_manutencao || "Estamos realizando melhorias e atualizações no sistema. Por favor, tente novamente em alguns instantes.";
+
+    // 2. Busca as tabelas de parâmetros
     const { data: supervisoresData, error: errSup } = await supabase.from('supervisores').select('nome');
     if (errSup) throw new Error(`Erro em supervisores: ${errSup.message}`);
 
@@ -30,12 +47,6 @@ export default async function handler(req, res) {
     const { data: colaboradoresData, error: errColab } = await supabase.from('colaboradores').select('matricula, nome');
     if (errColab) throw new Error(`Erro em colaboradores: ${errColab.message}`);
 
-    // Opcional: Você pode buscar a versão mínima de uma tabela de configurações do Supabase se preferir gerenciar via banco.
-    // Exemplo: const { data: configApp } = await supabase.from('configuracoes_app').select('*').single();
-    // Caso contrário, definimos os valores padrão de controle aqui:
-    const versao_minima = "1.1.0"; // Altere para "1.2.0" quando quiser obrigar os usuários a atualizarem
-    const url_loja = "https://github.com/IG0RT0RRES"; // Link direto para baixar a nova versão ou GitHub/Release
-
     // Mapeia os dados para o formato original
     const supervisores = (supervisoresData || []).map(item => item.nome);
     const equipes = (equipesData || []).map(item => item.nome);
@@ -46,13 +57,16 @@ export default async function handler(req, res) {
       return item.matricula ? `${item.matricula} - ${nomeUpper}` : nomeUpper;
     });
 
+    // Retorna a resposta completa incluindo o modo de manutenção
     return res.status(200).json({
       supervisores,
       colaboradores,
       equipes,
       projetos,
       versao_minima,
-      url_loja
+      url_loja,
+      modo_manutencao,
+      mensagem_manutencao
     });
 
   } catch (err) {
