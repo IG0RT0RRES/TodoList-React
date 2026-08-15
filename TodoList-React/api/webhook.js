@@ -196,11 +196,17 @@ export default async function handler(req, res) {
     const buf = await getRawBody(req);
     const sig = req.headers['stripe-signature'];
 
-    if (endpointSecret && sig) {
+    // 🔒 VALIDAÇÃO RIGOROSA DA ASSINATURA DO STRIPE
+    if (endpointSecret) {
+      if (!sig) {
+        console.error('❌ Assinatura stripe-signature ausente no cabeçalho.');
+        return res.status(400).send('Webhook Error: Stripe signature missing');
+      }
       try {
         event = stripe.webhooks.constructEvent(buf, sig, endpointSecret);
       } catch (err) {
-        event = JSON.parse(buf.toString('utf8'));
+        console.error(`❌ Falha ao validar evento do Stripe: ${err.message}`);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
       }
     } else {
       event = JSON.parse(buf.toString('utf8'));
@@ -234,11 +240,15 @@ export default async function handler(req, res) {
       customerEmail = metadata.email;
     }
 
-    const whatsapp = 
+    // Normalização do E-mail (evita falhas de caixa alta/baixa)
+    customerEmail = customerEmail.trim().toLowerCase();
+
+    const whatsapp = (
       metadata.whatsapp || 
       objectData.customer_details?.phone || 
       objectData.shipping?.phone || 
-      '';
+      ''
+    ).trim();
 
     const houveDesconto = objectData.total_details?.amount_discount > 0;
     const cupomMetadados = metadata.cupom === 'CAD2026';
@@ -256,7 +266,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const isDadosInvalidos = (!customerEmail || customerEmail === 'Cliente desconhecido') && !nome && !matricula;
+    const isDadosInvalidos = (!customerEmail || customerEmail === 'cliente desconhecido') && !nome && !matricula;
     if (isDadosInvalidos) {
       console.warn('⚠️ Webhook ignorado: Evento do Stripe sem dados identificáveis do cliente.');
       return res.status(200).json({ status: 'ignored', reason: 'Missing customer identification metadata' });
@@ -279,7 +289,7 @@ export default async function handler(req, res) {
           const { data: colabData } = await supabase
             .from('colaboradores')
             .select('id')
-            .eq('email', customerEmail.trim())
+            .eq('email', customerEmail)
             .maybeSingle();
           if (colabData) colabIdEncontrado = colabData.id;
         }
@@ -287,7 +297,7 @@ export default async function handler(req, res) {
         let queryVerificacao = supabase.from('licencas').select('id, tipo');
         const condicoes = [];
         if (colabIdEncontrado) condicoes.push(`colaborador_id.eq.${colabIdEncontrado}`);
-        if (whatsapp) condicoes.push(`whatsapp.eq.${whatsapp.trim()}`);
+        if (whatsapp) condicoes.push(`whatsapp.eq.${whatsapp}`);
 
         if (condicoes.length > 0) {
           queryVerificacao = queryVerificacao.or(condicoes.join(','));
@@ -297,12 +307,13 @@ export default async function handler(req, res) {
             console.warn(`🛑 TENTATIVA DE ABUSO BLOQUEADA: O usuário ${customerEmail} / ${whatsapp} já possui histórico de licenças.`);
 
             const agora = new Date();
-            const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
+            // Fuso horário do Brasil fixado
+            const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
             const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-            // Dispara e-mail de alerta avisando o cliente sobre o bloqueio + Notificação Discord
-            await Promise.all([
-              enviarEmailJS(customerEmail, nome || 'Cliente', '', '', 'bloqueado').catch(() => {}),
+            // Dispara e-mail de alerta e notificação Discord sem travar a resposta
+            await Promise.allSettled([
+              enviarEmailJS(customerEmail, nome || 'Cliente', '', '', 'bloqueado'),
               enviarWebhookDiscord(
                 '',
                 customerEmail || 'Não informado',
@@ -314,7 +325,7 @@ export default async function handler(req, res) {
                 false,
                 true,
                 true // isBloqueado = true
-              ).catch(() => {})
+              )
             ]);
 
             return res.status(200).json({ 
@@ -333,7 +344,7 @@ export default async function handler(req, res) {
       if (matricula || customerEmail) {
         const filtros = [];
         if (matricula) filtros.push(`matricula.eq.${matricula.trim()}`);
-        if (customerEmail) filtros.push(`email.eq.${customerEmail.trim()}`);
+        if (customerEmail) filtros.push(`email.eq.${customerEmail}`);
 
         const { data: colabsEncontrados } = await supabase
           .from('colaboradores')
@@ -442,15 +453,16 @@ export default async function handler(req, res) {
         }
       }
 
-      const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
-      const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
+      // 🕒 FORMATAÇÃO DE DATAS NO FUSO BRASILEIRO
+      const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
       const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-      // Define a tag de status exata para o EmailJS
       const statusEmail = isDegustacao ? 'degustacao' : (isRenovacao ? 'renovacao' : 'novo');
 
-      await Promise.all([
-        enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada, statusEmail).catch(() => {}),
+      // Executa os envios em paralelo garantindo resiliência
+      await Promise.allSettled([
+        enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada, statusEmail),
         enviarWebhookDiscord(
           chaveUso,
           customerEmail || 'Não informado',
@@ -462,7 +474,7 @@ export default async function handler(req, res) {
           isRenovacao,
           isDegustacao,
           false
-        ).catch(() => {}),
+        )
       ]);
 
       return res.status(200).json({
