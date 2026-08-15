@@ -208,6 +208,13 @@ export default async function handler(req, res) {
     const objectData = event.data.object;
     const metadata = objectData.metadata || {};
 
+    console.log('📦 DADOS DO STRIPE RECEBIDOS:', JSON.stringify({
+    total_details: objectData.total_details,
+    discount: objectData.discount,
+    discounts: objectData.discounts,
+    metadata: objectData.metadata
+    }, null, 2));
+    
     const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || '';
     const matricula = metadata.matricula || '';
 
