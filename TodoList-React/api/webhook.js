@@ -29,6 +29,12 @@ function gerarChave() {
   return `${letras}${numeros}`;
 }
 
+/* 
+  🛑 WHATSAPP DESATIVADO
+  A função 'enviarWhatsapp' foi comentada pois a API da Meta ainda não foi liberada. 
+  Caso queira reativar no futuro, basta descomentar o bloco abaixo.
+*/
+/*
 async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada, isRenovacao) {
   const token = process.env.META_ACCESS_TOKEN;
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
@@ -72,6 +78,7 @@ async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada,
     console.error('❌ Erro na requisição para Meta WhatsApp API:', error);
   }
 }
+*/
 
 async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormatada) {
   const serviceId = process.env.EMAILJS_SERVICE_ID;
@@ -374,9 +381,8 @@ export default async function handler(req, res) {
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
       const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-      // 3. Disparo de Notificações
+      // 3. Disparo de Notificações (Apenas EmailJS e Discord agora)
       await Promise.all([
-        enviarWhatsapp(whatsapp, nome || 'Cliente', chaveUso, dataValidadeFormatada, isRenovacao).catch(() => {}),
         enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada).catch(() => {}),
         enviarWebhookDiscord(
           chaveUso,
