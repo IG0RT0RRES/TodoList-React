@@ -220,31 +220,50 @@ export default async function handler(req, res) {
       customerEmail = metadata.email;
     }
 
-            // 🔍 Identifica se o cupom CAD2026 foi realmente aplicado pelo cliente
+   // 🔍 Identificação ultra-robusta do Cupom CAD2026
     let isDegustacao = false;
 
-    // O Stripe pode armazenar o desconto em diferentes locais da Checkout Session dependendo de como foi aplicado
-    const discountObj = objectData.total_details?.breakdown?.discounts?.[0]?.discount || objectData.discount;
-
-    if (discountObj) {
-      // Se for um objeto de cupom ou ID de cupom direto
-      const couponId = discountObj.coupon?.id || discountObj.id;
-      
-      // Valida estritamente se o cupom usado foi o CAD2026
-      if (couponId === 'CAD2026') {
-        isDegustacao = true;
+    // 1. Verifica se veio no breakdown de descontos (Padrão para Checkout com Promotion Codes)
+    const breakdownDiscounts = objectData.total_details?.breakdown?.discounts;
+    if (Array.isArray(breakdownDiscounts) && breakdownDiscounts.length > 0) {
+      for (const d of breakdownDiscounts) {
+        const couponId = d.discount?.coupon?.id || d.coupon?.id || d.id;
+        if (couponId === 'CAD2026') {
+          isDegustacao = true;
+          break;
+        }
       }
     }
 
-    // Fallback alternativo caso venha em formato de array de descontos
+    // 2. Verifica nas propriedades diretas de desconto da sessão
+    if (!isDegustacao) {
+      const directDiscount = objectData.discount;
+      if (typeof directDiscount === 'string' && directDiscount === 'CAD2026') {
+        isDegustacao = true;
+      } else if (directDiscount && typeof directDiscount === 'object') {
+        const couponId = directDiscount.coupon?.id || directDiscount.id;
+        if (couponId === 'CAD2026') {
+          isDegustacao = true;
+        }
+      }
+    }
+
+    // 3. Verifica em objectData.discounts (array direto)
     if (!isDegustacao && Array.isArray(objectData.discounts)) {
-      isDegustacao = objectData.discounts.some(d => d === 'CAD2026' || d?.coupon?.id === 'CAD2026' || d?.id === 'CAD2026');
+      isDegustacao = objectData.discounts.some(d => {
+        if (typeof d === 'string') return d === 'CAD2026';
+        return d?.coupon?.id === 'CAD2026' || d?.id === 'CAD2026';
+      });
+    }
+
+    // 4. Verificação de segurança via metadados (Caso queira garantir caso o Stripe passe)
+    if (!isDegustacao && metadata.cupom === 'CAD2026') {
+      isDegustacao = true;
     }
 
     let diasValidade = isDegustacao ? 3 : 30;
     const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
-
-
+    
     const isDadosInvalidos = (!customerEmail || customerEmail === 'Cliente desconhecido') && !nome && !matricula;
     if (isDadosInvalidos) {
       console.warn('⚠️ Webhook ignorado: Evento do Stripe sem dados identificáveis do cliente.');
