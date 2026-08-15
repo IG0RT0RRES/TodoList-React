@@ -29,57 +29,6 @@ function gerarChave() {
   return `${letras}${numeros}`;
 }
 
-/* 
-  🛑 WHATSAPP DESATIVADO
-  A função 'enviarWhatsapp' foi comentada pois a API da Meta ainda não foi liberada. 
-  Caso queira reativar no futuro, basta descomentar o bloco abaixo.
-*/
-/*
-async function enviarWhatsapp(whatsapp, nome, licenseKey, dataValidadeFormatada, isRenovacao) {
-  const token = process.env.META_ACCESS_TOKEN;
-  const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
-
-  if (!whatsapp) return;
-  if (!token || !phoneNumberId) return;
-
-  const whatsappApiUrl = `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`;
-  const numeroFormatado = whatsapp.replace(/\D/g, '');
-
-  const payloadMeta = {
-    messaging_product: 'whatsapp',
-    to: numeroFormatado,
-    type: 'template',
-    template: {
-      name: 'envio_licenca',
-      language: { code: 'pt_BR' },
-      components: [
-        {
-          type: 'body',
-          parameters: [
-            { type: 'text', text: nome },
-            { type: 'text', text: licenseKey },
-            { type: 'text', text: dataValidadeFormatada }
-          ]
-        }
-      ]
-    }
-  };
-
-  try {
-    await fetch(whatsappApiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payloadMeta),
-    });
-  } catch (error) {
-    console.error('❌ Erro na requisição para Meta WhatsApp API:', error);
-  }
-}
-*/
-
 async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormatada) {
   const serviceId = process.env.EMAILJS_SERVICE_ID;
   const templateId = process.env.EMAILJS_TEMPLATE_ID;
@@ -95,7 +44,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
     service_id: serviceId,
     template_id: templateId,
     user_id: publicKey,
-    accessToken: privateKey, // Obrigatório para o Strict Mode
+    accessToken: privateKey,
     template_params: {
       to_email: customerEmail,
       to_name: nome,
@@ -122,43 +71,56 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
   }
 }
 
-async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao, isDegustacao) {
+async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao, isDegustacao, isBloqueado = false) {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
 
   let titulo = 'Nova Licença Gerada (30 Dias)';
   let descricao = 'Um novo colaborador foi cadastrado e salvo no Supabase.';
   let cor = 16711680; // Vermelho/Laranja
+  let conteudoBot = 'Novo pagamento e acesso liberado!';
 
-  if (isDegustacao) {
+  if (isBloqueado) {
+    titulo = '🛑 Tentativa de Abuso Bloqueada';
+    descricao = 'O usuário tentou reutilizar o cupom de degustação, mas já possui histórico de licenças.';
+    cor = 15158332; // Vermelho escuro de alerta
+    conteudoBot = '⚠️ Alerta de Segurança: Tentativa de reuso de degustação barrada!';
+  } else if (isDegustacao) {
     titulo = '🎁 Licença de Degustação Gerada (3 Dias)';
     descricao = 'Cupom CAD2026 aplicado! Licença de teste grátis gerada para o colaborador.';
     cor = 3447003; // Azul
+    conteudoBot = '🎁 Novo teste grátis ativado!';
   } else if (isRenovacao) {
     titulo = 'Licença Renovada (+30 Dias)';
     descricao = 'Um pagamento de renovação foi processado e a validade da chave existente foi estendida.';
     cor = 3066993; // Verde
+    conteudoBot = 'Renovação de licença concluída!';
   }
 
-  const tipoTexto = isDegustacao ? 'Degustação (3 Dias)' : (isRenovacao ? 'Renovação' : 'Novo Colaborador');
+  const tipoTexto = isBloqueado ? 'Bloqueado (Reuso de Degustação)' : (isDegustacao ? 'Degustação (3 Dias)' : (isRenovacao ? 'Renovação' : 'Novo Colaborador'));
+
+  const fields = [
+    { name: 'Tipo', value: tipoTexto, inline: true },
+    { name: 'Colaborador', value: matriculaFormatada || nome, inline: false },
+    { name: 'WhatsApp', value: whatsapp || 'Não informado', inline: true },
+    { name: 'E-mail', value: customerEmail, inline: true },
+    { name: 'Data da Operação', value: dataAquisicao, inline: true },
+  ];
+
+  if (!isBloqueado) {
+    fields.push({ name: 'Código de Acesso', value: licenseKey, inline: true });
+    fields.push({ name: 'Válido até', value: dataValidade, inline: true });
+  }
 
   const payload = {
     username: 'Stripe Pix Bot',
-    content: isDegustacao ? '🎁 Novo teste grátis ativado!' : (isRenovacao ? 'Renovação de licença concluída!' : 'Novo pagamento e acesso liberado!'),
+    content: conteudoBot,
     embeds: [
       {
         title: titulo,
         description: descricao,
         color: cor,
-        fields: [
-          { name: 'Código de Acesso', value: licenseKey, inline: true },
-          { name: 'Tipo', value: tipoTexto, inline: true },
-          { name: 'Colaborador', value: matriculaFormatada || nome, inline: false },
-          { name: 'WhatsApp', value: whatsapp || 'Não informado', inline: true },
-          { name: 'E-mail', value: customerEmail, inline: true },
-          { name: 'Data da Operação', value: dataAquisicao, inline: true },
-          { name: 'Válido até', value: dataValidade, inline: true },
-        ],
+        fields: fields,
       },
     ],
   };
@@ -233,13 +195,11 @@ export default async function handler(req, res) {
       objectData.shipping?.phone || 
       '';
 
-    // 🔍 Identificação ultra-robusta do Cupom/Desconto (CAD2026)
     const houveDesconto = objectData.total_details?.amount_discount > 0;
     const cupomMetadados = metadata.cupom === 'CAD2026';
 
     let isDegustacao = houveDesconto || cupomMetadados;
 
-    // Dupla checagem opcional nos arrays de desconto caso venham preenchidos
     const breakdownDiscounts = objectData.total_details?.breakdown?.discounts;
     if (!isDegustacao && Array.isArray(breakdownDiscounts) && breakdownDiscounts.length > 0) {
       for (const d of breakdownDiscounts) {
@@ -267,7 +227,7 @@ export default async function handler(req, res) {
 
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // 🛑 TRAVA ANTI-ABUSO DEFINITIVA NO SUPABASE (Versão Blindada em 2 Etapas)
+      // 🛑 TRAVA ANTI-ABUSO BLINDADA COM ALERTA NO DISCORD
       if (isDegustacao && (customerEmail || whatsapp)) {
         let colabIdEncontrado = null;
         if (customerEmail) {
@@ -290,6 +250,25 @@ export default async function handler(req, res) {
 
           if (licencaAnterior && licencaAnterior.length > 0) {
             console.warn(`🛑 TENTATIVA DE ABUSO BLOQUEADA: O usuário ${customerEmail} / ${whatsapp} já possui histórico de licenças.`);
+            
+            // Dispara notificação de alerta para o Discord informando o bloqueio
+            const agora = new Date();
+            const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
+            const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
+
+            await enviarWebhookDiscord(
+              '',
+              customerEmail || 'Não informado',
+              nome || 'Cliente',
+              colaboradorFormatado,
+              whatsapp,
+              dataAquisicaoFormatada,
+              '',
+              false,
+              true,
+              true // isBloqueado = true
+            ).catch(() => {});
+
             return res.status(200).json({ 
               status: 'blocked', 
               message: "Cupom de degustação restrito apenas a novos clientes." 
@@ -301,7 +280,6 @@ export default async function handler(req, res) {
       let diasValidade = isDegustacao ? 3 : 30;
       const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
 
-      // 1. Garantir ou buscar o colaborador na tabela "colaboradores" (evitando erro de duplicidade)
       let colaboradorId = null;
 
       if (matricula || customerEmail) {
@@ -352,7 +330,6 @@ export default async function handler(req, res) {
         }
       }
 
-      // 2. Verificar se já existe uma licença ativa para este cliente
       let queryLicenca = supabase.from('licencas').select('*, colaboradores(matricula, nome)');
 
       if (colaboradorId) {
@@ -397,7 +374,6 @@ export default async function handler(req, res) {
         }
 
       } else {
-        // Nova licença (Normal de 30 dias ou Degustação de 3 dias)
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + diasValidade);
 
@@ -422,7 +398,6 @@ export default async function handler(req, res) {
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
       const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-      // 3. Disparo de Notificações
       await Promise.all([
         enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada).catch(() => {}),
         enviarWebhookDiscord(
@@ -434,7 +409,8 @@ export default async function handler(req, res) {
           dataAquisicaoFormatada,
           dataValidadeFormatada,
           isRenovacao,
-          isDegustacao
+          isDegustacao,
+          false
         ).catch(() => {}),
       ]);
 
