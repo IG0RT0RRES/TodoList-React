@@ -209,10 +209,10 @@ export default async function handler(req, res) {
     const metadata = objectData.metadata || {};
 
     console.log('📦 DADOS DO STRIPE RECEBIDOS:', JSON.stringify({
-    total_details: objectData.total_details,
-    discount: objectData.discount,
-    discounts: objectData.discounts,
-    metadata: objectData.metadata
+      total_details: objectData.total_details,
+      discount: objectData.discount,
+      discounts: objectData.discounts,
+      metadata: objectData.metadata
     }, null, 2));
     
     const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || '';
@@ -227,12 +227,15 @@ export default async function handler(req, res) {
       customerEmail = metadata.email;
     }
 
-   // 🔍 Identificação ultra-robusta do Cupom CAD2026
-    let isDegustacao = false;
+    // 🔍 Identificação ultra-robusta do Cupom/Desconto (CAD2026)
+    const houveDesconto = objectData.total_details?.amount_discount > 0;
+    const cupomMetadados = metadata.cupom === 'CAD2026';
 
-    // 1. Verifica se veio no breakdown de descontos (Padrão para Checkout com Promotion Codes)
+    let isDegustacao = houveDesconto || cupomMetadados;
+
+    // Dupla checagem opcional nos arrays de desconto caso venham preenchidos
     const breakdownDiscounts = objectData.total_details?.breakdown?.discounts;
-    if (Array.isArray(breakdownDiscounts) && breakdownDiscounts.length > 0) {
+    if (!isDegustacao && Array.isArray(breakdownDiscounts) && breakdownDiscounts.length > 0) {
       for (const d of breakdownDiscounts) {
         const couponId = d.discount?.coupon?.id || d.coupon?.id || d.id;
         if (couponId === 'CAD2026') {
@@ -240,32 +243,6 @@ export default async function handler(req, res) {
           break;
         }
       }
-    }
-
-    // 2. Verifica nas propriedades diretas de desconto da sessão
-    if (!isDegustacao) {
-      const directDiscount = objectData.discount;
-      if (typeof directDiscount === 'string' && directDiscount === 'CAD2026') {
-        isDegustacao = true;
-      } else if (directDiscount && typeof directDiscount === 'object') {
-        const couponId = directDiscount.coupon?.id || directDiscount.id;
-        if (couponId === 'CAD2026') {
-          isDegustacao = true;
-        }
-      }
-    }
-
-    // 3. Verifica em objectData.discounts (array direto)
-    if (!isDegustacao && Array.isArray(objectData.discounts)) {
-      isDegustacao = objectData.discounts.some(d => {
-        if (typeof d === 'string') return d === 'CAD2026';
-        return d?.coupon?.id === 'CAD2026' || d?.id === 'CAD2026';
-      });
-    }
-
-    // 4. Verificação de segurança via metadados (Caso queira garantir caso o Stripe passe)
-    if (!isDegustacao && metadata.cupom === 'CAD2026') {
-      isDegustacao = true;
     }
 
     let diasValidade = isDegustacao ? 3 : 30;
@@ -379,7 +356,7 @@ export default async function handler(req, res) {
           .update({
             data_validade: novaDataValidade.toISOString(),
             status: 'ativa',
-            tipo: tipoLicenca // Atualiza também o tipo na renovação (se migrou de degustacao -> mensal)
+            tipo: tipoLicenca
           })
           .eq('chave', chaveUso);
 
@@ -399,7 +376,7 @@ export default async function handler(req, res) {
           data_aquisicao: agora.toISOString(),
           data_validade: novaDataValidade.toISOString(),
           status: 'ativa',
-          tipo: tipoLicenca, // Grava 'degustacao' ou 'mensal'
+          tipo: tipoLicenca,
           whatsapp: whatsapp || null,
           admin: false
         }]);
@@ -414,7 +391,7 @@ export default async function handler(req, res) {
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
       const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-      // 3. Disparo de Notificações (Apenas EmailJS e Discord agora)
+      // 3. Disparo de Notificações
       await Promise.all([
         enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada).catch(() => {}),
         enviarWebhookDiscord(
