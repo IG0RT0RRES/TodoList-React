@@ -214,7 +214,7 @@ export default async function handler(req, res) {
       discounts: objectData.discounts,
       metadata: objectData.metadata
     }, null, 2));
-    
+
     const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || '';
     const matricula = metadata.matricula || '';
 
@@ -226,6 +226,12 @@ export default async function handler(req, res) {
     } else if (metadata.email) {
       customerEmail = metadata.email;
     }
+
+    const whatsapp = 
+      metadata.whatsapp || 
+      objectData.customer_details?.phone || 
+      objectData.shipping?.phone || 
+      '';
 
     // 🔍 Identificação ultra-robusta do Cupom/Desconto (CAD2026)
     const houveDesconto = objectData.total_details?.amount_discount > 0;
@@ -245,9 +251,6 @@ export default async function handler(req, res) {
       }
     }
 
-    let diasValidade = isDegustacao ? 3 : 30;
-    const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
-    
     const isDadosInvalidos = (!customerEmail || customerEmail === 'Cliente desconhecido') && !nome && !matricula;
     if (isDadosInvalidos) {
       console.warn('⚠️ Webhook ignorado: Evento do Stripe sem dados identificáveis do cliente.');
@@ -255,12 +258,6 @@ export default async function handler(req, res) {
     }
 
     try {
-      const whatsapp = 
-        metadata.whatsapp || 
-        objectData.customer_details?.phone || 
-        objectData.shipping?.phone || 
-        '';
-
       const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -269,6 +266,30 @@ export default async function handler(req, res) {
       }
 
       const supabase = createClient(supabaseUrl, supabaseKey);
+
+      // 🛑 TRAVA ANTI-ABUSO DEFINITIVA NO SUPABASE:
+      // Se for tentativa de degustação, verifica se este e-mail ou WhatsApp já possui QUALQUER licença anterior cadastrada
+      if (isDegustacao && (customerEmail || whatsapp)) {
+        const filtrosHistorico = [];
+        if (customerEmail) filtrosHistorico.push(`colaboradores.email.eq.${customerEmail.trim()}`);
+        if (whatsapp) filtrosHistorico.push(`whatsapp.eq.${whatsapp.trim()}`);
+
+        const { data: historicoGeral } = await supabase
+          .from('licencas')
+          .select('id, tipo, whatsapp, colaboradores(email)')
+          .or(filtrosHistorico.join(','));
+
+        if (historicoGeral && historicoGeral.length > 0) {
+          console.warn(`🛑 TENTATIVA DE ABUSO BLOQUEADA: O usuário ${customerEmail} / ${whatsapp} já possui histórico de licenças e tentou usar degustação.`);
+          return res.status(200).json({ 
+            status: 'blocked', 
+            message: "Cupom de degustação restrito apenas a novos clientes." 
+          });
+        }
+      }
+
+      let diasValidade = isDegustacao ? 3 : 30;
+      const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
 
       // 1. Garantir ou buscar o colaborador na tabela "colaboradores" (evitando erro de duplicidade)
       let colaboradorId = null;
@@ -287,7 +308,7 @@ export default async function handler(req, res) {
 
         if (colabExistente) {
           colaboradorId = colabExistente.id;
-          
+
           await supabase.from('colaboradores').update({
             nome: (nome || 'Cliente').toUpperCase(),
             email: customerEmail || colabExistente.email,
