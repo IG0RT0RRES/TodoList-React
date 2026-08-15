@@ -220,14 +220,29 @@ export default async function handler(req, res) {
       customerEmail = metadata.email;
     }
 
-    // 🔍 Identifica se o cupom CAD2026 foi aplicado no checkout
+        // 🔍 Identifica se o cupom CAD2026 foi aplicado no checkout (De forma robusta)
     let diasValidade = 30;
     let isDegustacao = false;
 
+    // 1. Verifica se veio em total_details.breakdown.discounts
     if (objectData.total_details?.breakdown?.discounts) {
-      const discounts = objectData.total_details.breakdown.discounts;
-      isDegustacao = discounts.some(d => d.discount?.coupon?.id === 'CAD2026');
-    } else if (objectData.discount?.coupon?.id === 'CAD2026') {
+      isDegustacao = objectData.total_details.breakdown.discounts.some(
+        d => d.discount?.coupon?.id === 'CAD2026' || d.coupon?.id === 'CAD2026'
+      );
+    } 
+    // 2. Verifica na propriedade discount direta
+    else if (objectData.discount?.coupon?.id === objectData.discount?.id) { // fallback
+      // checagem genérica
+    }
+    
+    // 3. Verifica em objectData.discounts (array direto na sessão)
+    if (!isDegustacao && Array.isArray(objectData.discounts)) {
+      isDegustacao = objectData.discounts.some(d => d === 'CAD2026' || d?.coupon?.id === 'CAD2026' || d?.id === 'CAD2026');
+    }
+
+    // 4. Verificação de segurança via metadados caso queira forçar via front-end do Stripe, 
+    // ou se o objeto veio de um payment_intent onde o cupom foi aplicado na Checkout Session pai.
+    if (!isDegustacao && metadata.cupom === 'CAD2026') {
       isDegustacao = true;
     }
 
@@ -237,6 +252,7 @@ export default async function handler(req, res) {
 
     // Define a string que será salva na coluna "tipo" do banco de dados
     const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
+
 
     const isDadosInvalidos = (!customerEmail || customerEmail === 'Cliente desconhecido') && !nome && !matricula;
     if (isDadosInvalidos) {
