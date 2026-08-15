@@ -29,16 +29,60 @@ function gerarChave() {
   return `${letras}${numeros}`;
 }
 
-async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormatada) {
+// 📧 FUNÇÃO DE ENVIO DO EMAILJS COM TEMPLATE DINÂMICO UNIFICADO
+async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormatada, tipoStatus) {
   const serviceId = process.env.EMAILJS_SERVICE_ID;
   const templateId = process.env.EMAILJS_TEMPLATE_ID;
   const publicKey = process.env.EMAILJS_PUBLIC_KEY;
   const privateKey = process.env.EMAILJS_PRIVATE_KEY;
 
-  if (!serviceId || !templateId || !publicKey) return;
-  if (!customerEmail) return;
+  if (!serviceId || !templateId || !publicKey || !customerEmail) return;
 
   const emailJsUrl = 'https://api.emailjs.com/api/v1.0/email/send';
+
+  // Configuração padrão: Novo Acesso / Licença Mensal
+  let configuracao = {
+    cor_fundo: 'linear-gradient(135deg, #2563eb, #1d4ed8)', // Azul
+    cor_borda: '#3b82f6',
+    cor_texto: '#60a5fa',
+    titulo_email: 'Acesso Liberado! 🚀',
+    mensagem_corpo: 'Sua nova licença foi gerada com sucesso e já está pronta para uso no aplicativo.',
+    conteudo_destaque: licenseKey,
+    detalhe_rodape: `📅 Validade do Acesso: ${dataValidadeFormatada}`
+  };
+
+  // Ajusta cores e textos dinamicamente dependendo do status do cliente
+  if (tipoStatus === 'renovacao') {
+    configuracao = {
+      cor_fundo: 'linear-gradient(135deg, #059669, #047857)', // Verde
+      cor_borda: '#10b981',
+      cor_texto: '#34d399',
+      titulo_email: 'Licença Renovada! 🔄',
+      mensagem_corpo: 'O seu pagamento foi confirmado e a validade da sua licença foi estendida com sucesso.',
+      conteudo_destaque: licenseKey,
+      detalhe_rodape: `🗓️ Nova Validade: ${dataValidadeFormatada}`
+    };
+  } else if (tipoStatus === 'degustacao') {
+    configuracao = {
+      cor_fundo: 'linear-gradient(135deg, #7c3aed, #6d28d9)', // Roxo
+      cor_borda: '#8b5cf6',
+      cor_texto: '#a78bfa',
+      titulo_email: 'Bem-vindo ao Teste Grátis! 🎁',
+      mensagem_corpo: 'Seu cupom de degustação foi ativado com sucesso. Aproveite seus 3 dias de acesso total ao aplicativo!',
+      conteudo_destaque: licenseKey,
+      detalhe_rodape: `⏱️ Válido até: ${dataValidadeFormatada}`
+    };
+  } else if (tipoStatus === 'bloqueado') {
+    configuracao = {
+      cor_fundo: 'linear-gradient(135deg, #dc2626, #991b1b)', // Vermelho
+      cor_borda: '#ef4444',
+      cor_texto: '#fca5a5',
+      titulo_email: 'Cupom Não Aplicado 🛑',
+      mensagem_corpo: 'Identificamos que você já possui histórico em nosso aplicativo. O cupom de degustação é exclusivo para o primeiro acesso de novos usuários.',
+      conteudo_destaque: 'CUPOM INDISPONÍVEL',
+      detalhe_rodape: 'Adquira uma licença regular para continuar usando todas as funções do aplicativo.'
+    };
+  }
 
   const payload = {
     service_id: serviceId,
@@ -48,8 +92,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
     template_params: {
       to_email: customerEmail,
       to_name: nome,
-      license_key: licenseKey,
-      validade: dataValidadeFormatada
+      ...configuracao
     }
   };
 
@@ -65,6 +108,8 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Erro na resposta do EmailJS:', response.status, errorText);
+    } else {
+      console.log(`✅ E-mail (${tipoStatus}) enviado com sucesso para ${customerEmail}`);
     }
   } catch (error) {
     console.error('❌ Erro na requisição para EmailJS:', error);
@@ -227,7 +272,7 @@ export default async function handler(req, res) {
 
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // 🛑 TRAVA ANTI-ABUSO BLINDADA COM ALERTA NO DISCORD
+      // 🛑 TRAVA ANTI-ABUSO BLINDADA COM EMAILJS + DISCORD
       if (isDegustacao && (customerEmail || whatsapp)) {
         let colabIdEncontrado = null;
         if (customerEmail) {
@@ -250,24 +295,27 @@ export default async function handler(req, res) {
 
           if (licencaAnterior && licencaAnterior.length > 0) {
             console.warn(`🛑 TENTATIVA DE ABUSO BLOQUEADA: O usuário ${customerEmail} / ${whatsapp} já possui histórico de licenças.`);
-            
-            // Dispara notificação de alerta para o Discord informando o bloqueio
+
             const agora = new Date();
             const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR');
             const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-            await enviarWebhookDiscord(
-              '',
-              customerEmail || 'Não informado',
-              nome || 'Cliente',
-              colaboradorFormatado,
-              whatsapp,
-              dataAquisicaoFormatada,
-              '',
-              false,
-              true,
-              true // isBloqueado = true
-            ).catch(() => {});
+            // Dispara e-mail de alerta avisando o cliente sobre o bloqueio + Notificação Discord
+            await Promise.all([
+              enviarEmailJS(customerEmail, nome || 'Cliente', '', '', 'bloqueado').catch(() => {}),
+              enviarWebhookDiscord(
+                '',
+                customerEmail || 'Não informado',
+                nome || 'Cliente',
+                colaboradorFormatado,
+                whatsapp,
+                dataAquisicaoFormatada,
+                '',
+                false,
+                true,
+                true // isBloqueado = true
+              ).catch(() => {})
+            ]);
 
             return res.status(200).json({ 
               status: 'blocked', 
@@ -398,8 +446,11 @@ export default async function handler(req, res) {
       const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR');
       const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
+      // Define a tag de status exata para o EmailJS
+      const statusEmail = isDegustacao ? 'degustacao' : (isRenovacao ? 'renovacao' : 'novo');
+
       await Promise.all([
-        enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada).catch(() => {}),
+        enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada, statusEmail).catch(() => {}),
         enviarWebhookDiscord(
           chaveUso,
           customerEmail || 'Não informado',
@@ -416,7 +467,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         status: 'success',
-        tipo: isDegustacao ? 'degustacao' : (isRenovacao ? 'renovacao' : 'novo_colaborador'),
+        tipo: statusEmail,
         license: chaveUso,
         valid_until: dataValidadeFormatada,
       });
