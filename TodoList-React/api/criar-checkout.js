@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
-    const { matricula, nome, whatsapp, email } = req.body || {};
+    const { matricula, nome, whatsapp, email, cupom } = req.body || {};
 
     if (!matricula || !nome || !whatsapp || !email) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
               name: 'Licença de Acesso - Gestor de Baixas',
               description: `Ativação para a matrícula ${matricula}`,
             },
-            unit_amount: 1500, // R$ 10,00 em centavos
+            unit_amount: 1500, // R$ 15,00 em centavos (ou o valor ajustado)
           },
           quantity: 1,
         },
@@ -59,6 +59,7 @@ export default async function handler(req, res) {
         nome,
         whatsapp,
         email,
+        cupom: cupom || 'nenhum',
       },
     });
 
