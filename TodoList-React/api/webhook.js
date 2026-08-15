@@ -267,24 +267,34 @@ export default async function handler(req, res) {
 
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // 🛑 TRAVA ANTI-ABUSO DEFINITIVA NO SUPABASE:
-      // Se for tentativa de degustação, verifica se este e-mail ou WhatsApp já possui QUALQUER licença anterior cadastrada
+      // 🛑 TRAVA ANTI-ABUSO DEFINITIVA NO SUPABASE (Versão Blindada em 2 Etapas)
       if (isDegustacao && (customerEmail || whatsapp)) {
-        const filtrosHistorico = [];
-        if (customerEmail) filtrosHistorico.push(`colaboradores.email.eq.${customerEmail.trim()}`);
-        if (whatsapp) filtrosHistorico.push(`whatsapp.eq.${whatsapp.trim()}`);
+        let colabIdEncontrado = null;
+        if (customerEmail) {
+          const { data: colabData } = await supabase
+            .from('colaboradores')
+            .select('id')
+            .eq('email', customerEmail.trim())
+            .maybeSingle();
+          if (colabData) colabIdEncontrado = colabData.id;
+        }
 
-        const { data: historicoGeral } = await supabase
-          .from('licencas')
-          .select('id, tipo, whatsapp, colaboradores(email)')
-          .or(filtrosHistorico.join(','));
+        let queryVerificacao = supabase.from('licencas').select('id, tipo');
+        const condicoes = [];
+        if (colabIdEncontrado) condicoes.push(`colaborador_id.eq.${colabIdEncontrado}`);
+        if (whatsapp) condicoes.push(`whatsapp.eq.${whatsapp.trim()}`);
 
-        if (historicoGeral && historicoGeral.length > 0) {
-          console.warn(`🛑 TENTATIVA DE ABUSO BLOQUEADA: O usuário ${customerEmail} / ${whatsapp} já possui histórico de licenças e tentou usar degustação.`);
-          return res.status(200).json({ 
-            status: 'blocked', 
-            message: "Cupom de degustação restrito apenas a novos clientes." 
-          });
+        if (condicoes.length > 0) {
+          queryVerificacao = queryVerificacao.or(condicoes.join(','));
+          const { data: licencaAnterior } = await queryVerificacao;
+
+          if (licencaAnterior && licencaAnterior.length > 0) {
+            console.warn(`🛑 TENTATIVA DE ABUSO BLOQUEADA: O usuário ${customerEmail} / ${whatsapp} já possui histórico de licenças.`);
+            return res.status(200).json({ 
+              status: 'blocked', 
+              message: "Cupom de degustação restrito apenas a novos clientes." 
+            });
+          }
         }
       }
 
