@@ -220,37 +220,28 @@ export default async function handler(req, res) {
       customerEmail = metadata.email;
     }
 
-        // 🔍 Identifica se o cupom CAD2026 foi aplicado no checkout (De forma robusta)
-    let diasValidade = 30;
+            // 🔍 Identifica se o cupom CAD2026 foi realmente aplicado pelo cliente
     let isDegustacao = false;
 
-    // 1. Verifica se veio em total_details.breakdown.discounts
-    if (objectData.total_details?.breakdown?.discounts) {
-      isDegustacao = objectData.total_details.breakdown.discounts.some(
-        d => d.discount?.coupon?.id === 'CAD2026' || d.coupon?.id === 'CAD2026'
-      );
-    } 
-    // 2. Verifica na propriedade discount direta
-    else if (objectData.discount?.coupon?.id === objectData.discount?.id) { // fallback
-      // checagem genérica
+    // O Stripe pode armazenar o desconto em diferentes locais da Checkout Session dependendo de como foi aplicado
+    const discountObj = objectData.total_details?.breakdown?.discounts?.[0]?.discount || objectData.discount;
+
+    if (discountObj) {
+      // Se for um objeto de cupom ou ID de cupom direto
+      const couponId = discountObj.coupon?.id || discountObj.id;
+      
+      // Valida estritamente se o cupom usado foi o CAD2026
+      if (couponId === 'CAD2026') {
+        isDegustacao = true;
+      }
     }
-    
-    // 3. Verifica em objectData.discounts (array direto na sessão)
+
+    // Fallback alternativo caso venha em formato de array de descontos
     if (!isDegustacao && Array.isArray(objectData.discounts)) {
       isDegustacao = objectData.discounts.some(d => d === 'CAD2026' || d?.coupon?.id === 'CAD2026' || d?.id === 'CAD2026');
     }
 
-    // 4. Verificação de segurança via metadados caso queira forçar via front-end do Stripe, 
-    // ou se o objeto veio de um payment_intent onde o cupom foi aplicado na Checkout Session pai.
-    if (!isDegustacao && metadata.cupom === 'CAD2026') {
-      isDegustacao = true;
-    }
-
-    if (isDegustacao) {
-      diasValidade = 3;
-    }
-
-    // Define a string que será salva na coluna "tipo" do banco de dados
+    let diasValidade = isDegustacao ? 3 : 30;
     const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
 
 
