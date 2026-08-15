@@ -30,9 +30,34 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
     }
 
-    // Criação da Checkout Session com o campo de cupom liberado
+    // 🔍 1. Buscar se já existe um cliente cadastrado no Stripe com este e-mail
+    const existingCustomers = await stripe.customers.list({
+      email: email.trim(),
+      limit: 1,
+    });
+
+    let customerId;
+
+    if (existingCustomers.data.length > 0) {
+      // Se já existe, reaproveita o ID do cliente existente no Stripe
+      customerId = existingCustomers.data[0].id;
+    } else {
+      // Se não existe, cria um novo cliente no Stripe
+      const newCustomer = await stripe.customers.create({
+        email: email.trim(),
+        name: nome.trim(),
+        phone: whatsapp.trim(),
+        metadata: {
+          matricula: matricula.trim(),
+        },
+      });
+      customerId = newCustomer.id;
+    }
+
+    // 🎟️ 2. Criação da Checkout Session vinculada ao Customer ID fixo
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'boleto'],
+      customer: customerId, // Vincula ao cliente oficial do Stripe (Essencial para a regra de 1º pedido funcionar!)
       line_items: [
         {
           price_data: {
@@ -41,17 +66,16 @@ export default async function handler(req, res) {
               name: 'Licença de Acesso - Gestor de Baixas',
               description: `Ativação para a matrícula ${matricula}`,
             },
-            unit_amount: 1500, // R$ 15,00 em centavos (ou o valor ajustado)
+            unit_amount: 1500, // R$ 15,00 em centavos
           },
           quantity: 1,
         },
       ],
       mode: 'payment',
 
-      // 🎟️ HABILITA O CAMPO DE CÓDIGO PROMOCIONAL/CUPOM NO CHECKOUT
+      // Habilita o campo de cupom no checkout
       allow_promotion_codes: true,
 
-      customer_email: email,
       success_url: `https://wa.me/5521969254192?text=Pagamento%20realizado%20com%20sucesso!%20Matricula:%20${encodeURIComponent(matricula)}`,
       cancel_url: `https://wa.me/5521969254192?text=O%20pagamento%20da%20licenca%20foi%20cancelado.`,
       metadata: {
