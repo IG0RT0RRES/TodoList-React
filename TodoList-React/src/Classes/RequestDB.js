@@ -27,7 +27,7 @@ export const requestlist = {
 
             try {
                 // 2. FALLBACK: Vercel Serverless Function + Google Drive
-                const vercelResponse = await fetch('/api/leaderboard');
+                const vercelResponse = await fetch('https://tarkhiz-studios-site.vercel.app/api/leaderboard');
 
                 if (!vercelResponse.ok) {
                     throw new Error(`API Vercel respondeu com status: ${vercelResponse.status}`);
