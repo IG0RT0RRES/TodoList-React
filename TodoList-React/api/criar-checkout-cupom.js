@@ -3,9 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// 📋 BASE DE FUNCIONÁRIOS OFICIAL (Validada diretamente na memória da API)
+// 📋 BASE DE FUNCIONÁRIOS OFICIAL (Em caixa alta e sem acentos)
 const FUNCIONARIOS_VALIDOS = {
-  "7000027": "IGOR TORRES DE PADUA",
   "7000288": "ADEILSON PRADO RAMOS",
   "7000611": "ADENILSON DOS SANTOS NASCIMENTO",
   "7000843": "ADHEMAR FRAZAO MELLO",
@@ -110,7 +109,7 @@ const FUNCIONARIOS_VALIDOS = {
   "7000722": "LEANDRO LIBANO DE CASTRO",
   "7000217": "LEONARDO ALVES DA SILVA",
   "7001019": "LEONARDO CORREA DE OLIVEIRA",
-  "7000537": "LEONARDO DA CONCEIÇÃO OLIVEIRA",
+  "7000537": "LEONARDO DA CONCEICAO OLIVEIRA",
   "7000219": "LEONARDO SOUZA E SILVA",
   "7000964": "LEONARDO VITORINO DA FONSECA RODRIGUES",
   "7000724": "LORRAN RODRIGUES BORGES TEIXEIRA",
@@ -228,6 +227,7 @@ const FUNCIONARIOS_VALIDOS = {
   "7000816": "RONIVAL DE MENEZES E SILVA FILHO",
   "7000616": "ANDRE LUIZ DE CARVALHO VOLOTAO",
   "7000291": "CARLOS ALBERTO OLIVEIRA DA SILVA",
+  "7000027": "IGOR TORRES DE PADUA",
   "7001021": "LUIZ FABIANO SOUZA DA SILVA",
   "7000864": "GEORGE CARLOS JUNIOR",
   "7000198": "DIOGO BARBOSA ALIER",
@@ -239,6 +239,17 @@ const FUNCIONARIOS_VALIDOS = {
   "7000855": "DIOGO DE SOUZA ONORATO",
   "7001307": "LUCAS ALEXANDRE DE SOUZA"
 };
+
+// Função para remover acentos e padronizar textos em maiúsculas
+function normalizarTexto(texto) {
+  if (!texto) return '';
+  return texto
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -269,18 +280,31 @@ export default async function handler(req, res) {
     }
 
     const matriculaLimpa = matricula.trim();
+    const nomeInformadoNormalizado = normalizarTexto(nome);
 
-    // 🛑 1. VALIDAÇÃO DE COLABORADOR VÁLIDO (Impede matrículas falsas/inventadas)
-    if (!FUNCIONARIOS_VALIDOS[matriculaLimpa]) {
-      console.warn(`❌ [MATRÍCULA INVÁLIDA] Tentativa com matrícula não cadastrada: ${matriculaLimpa}`);
+    // 🛑 1. VALIDAÇÃO DE MATRÍCULA (Não encontrada na base)
+    const nomeCadastrado = FUNCIONARIOS_VALIDOS[matriculaLimpa];
+
+    if (!nomeCadastrado) {
+      console.warn(`❌ [MATRÍCULA NÃO ENCONTRADA]: ${matriculaLimpa}`);
       return res.status(400).json({ 
-        error: 'Matrícula não encontrada na base de funcionários autorizados da empresa.' 
+        error: 'Funcionário não encontrado, entre em contato com suporte pelo whatsapp.' 
       });
     }
 
-    console.log(`📱 [CHECKOUT] Matrícula válida identificada: ${matriculaLimpa} | Device ID: ${device_id || 'NÃO INFORMADO'}`);
+    // 🛑 2. VALIDAÇÃO CRUZADA DE NOME (Matrícula existe, mas o nome não bate)
+    const nomeCadastradoNormalizado = normalizarTexto(nomeCadastrado);
 
-    // 🛑 2. VALIDAÇÃO DE ANTI-ABUSO POR DEVICE_ID NO SUPABASE
+    if (nomeCadastradoNormalizado !== nomeInformadoNormalizado) {
+      console.warn(`❌ [DADOS INVÁLIDOS] Matrícula ${matriculaLimpa} esperava "${nomeCadastrado}", mas veio "${nome}".`);
+      return res.status(400).json({ 
+        error: 'Dados inválidos verifique as informações e tente novamente.' 
+      });
+    }
+
+    console.log(`📱 [CHECKOUT] Matrícula e Nome validados com sucesso: ${matriculaLimpa} - ${nomeCadastrado}`);
+
+    // 🛑 3. VALIDAÇÃO DE ANTI-ABUSO POR DEVICE_ID NO SUPABASE
     let permitirCupom = true;
 
     if (device_id) {
@@ -307,7 +331,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 🔍 3. Buscar ou Criar Cliente no Stripe
+    // 🔍 4. Buscar ou Criar Cliente no Stripe
     const existingCustomers = await stripe.customers.list({
       email: email.trim(),
       limit: 1,
@@ -319,7 +343,7 @@ export default async function handler(req, res) {
     } else {
       const newCustomer = await stripe.customers.create({
         email: email.trim(),
-        name: nome.trim(),
+        name: nomeCadastrado,
         phone: whatsapp.trim(),
         metadata: {
           matricula: matriculaLimpa,
@@ -328,7 +352,7 @@ export default async function handler(req, res) {
       customerId = newCustomer.id;
     }
 
-    // 🎟️ 4. Criação da Checkout Session
+    // 🎟️ 5. Criação da Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'boleto'],
       customer: customerId,
@@ -338,7 +362,7 @@ export default async function handler(req, res) {
             currency: 'brl',
             product_data: {
               name: 'Licença de Acesso - Gestor de Baixas',
-              description: `Ativação para a matrícula ${matriculaLimpa}`,
+              description: `Ativação para a matrícula ${matriculaLimpa} - ${nomeCadastrado}`,
             },
             unit_amount: 1500,
           },
@@ -351,7 +375,7 @@ export default async function handler(req, res) {
       cancel_url: `https://wa.me/5521969254192?text=O%20pagamento%20da%20licenca%20foi%20cancelado.`,
       metadata: {
         matricula: matriculaLimpa,
-        nome,
+        nome: nomeCadastrado,
         whatsapp,
         email,
         device_id: device_id || '',
