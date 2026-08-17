@@ -8,15 +8,40 @@ export default function Payments() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Função auxiliar para tentar capturar o device_id (caso venha por parâmetro na URL ou window nativo do app)
+  const getDeviceIdentifier = () => {
+    const params = new URLSearchParams(window.location.search);
+    let deviceId = params.get('device_id'); // Ex: se o app abrir a página passando via query string
+    
+    if (!deviceId) {
+      // Fallback seguro caso não venha na URL: usa um ID salvo no localStorage ou gera um temporário para a sessão
+      deviceId = localStorage.getItem('app_device_id');
+      if (!deviceId) {
+        deviceId = 'web_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+        localStorage.setItem('app_device_id', deviceId);
+      }
+    }
+    return deviceId;
+  };
+
   const handleProcessarPagamento = async (e) => {
     e.preventDefault();
     setLoading(true);
 
+    const deviceId = getDeviceIdentifier();
+
     try {
-      const response = await fetch('/api/criar-checkout', {
+      // 🚀 Apontando para o novo endpoint atualizado com a regra de cupom e device_id
+      const response = await fetch('/api/criar-checkout-cupom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matricula, nome, whatsapp, email })
+        body: JSON.stringify({ 
+          matricula, 
+          nome, 
+          whatsapp, 
+          email, 
+          device_id: deviceId 
+        })
       });
 
       const data = await response.json();
@@ -46,7 +71,7 @@ export default function Payments() {
 
       <div style={styles.container}>
         <div style={styles.contentWrapper}>
-          
+
           <div style={styles.bannerContainer}>
             <img 
               src={Banner} 
