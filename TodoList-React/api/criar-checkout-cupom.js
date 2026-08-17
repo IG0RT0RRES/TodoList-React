@@ -31,6 +31,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
     }
 
+    // 🖥️ LOG NA VERCEL: Exibe o Device ID recebido da requisição
+    console.log(`📱 [CHECKOUT] Requisição recebida para Matrícula: ${matricula} | Device ID: ${device_id || 'NÃO INFORMADO'}`);
+
     // 🛑 1. VALIDAÇÃO INTELIGENTE DE DEVICE_ID NO SUPABASE
     let permitirCupom = true; // Por padrão, novos aparelhos podem usar cupons
 
@@ -44,20 +47,24 @@ export default async function handler(req, res) {
         // Verifica se já existe qualquer licença vinculada a este device_id
         const { data: historicoAparelho, error: supabaseError } = await supabase
           .from('licencas')
-          .select('id, tipo')
+          .select('id, tipo, chave')
           .eq('device_id', device_id.trim())
           .maybeSingle();
 
         if (supabaseError) {
-          console.error('Erro ao consultar Supabase para anti-abuso:', supabaseError);
+          console.error('❌ Erro ao consultar Supabase para anti-abuso:', supabaseError);
         }
 
-        // Se encontrou qualquer registro, o aparelho NÃO é mais novo (já usou degustação ou comprou)
+        // Se encontrou qualquer registro, o aparelho NÃO é mais novo
         if (historicoAparelho) {
           permitirCupom = false;
-          console.log(`🔒 Dispositivo com histórico detectado (${device_id}). Campo de cupom desativado para esta sessão.`);
+          console.log(`🔒 [ANTI-ABUSO VERCEL] Histórico encontrado para o Device ID: ${device_id.trim()} (Licença tipo: ${historicoAparelho.tipo}). Campo de cupom desativado.`);
+        } else {
+          console.log(`✅ [ANTI-ABUSO VERCEL] Nenhum histórico prévio para o Device ID: ${device_id.trim()}. Cupom liberado.`);
         }
       }
+    } else {
+      console.warn(`⚠️ [ALERTA VERCEL] A requisição chegou sem nenhum 'device_id'.`);
     }
 
     // 🔍 2. Buscar se já existe um cliente cadastrado no Stripe com este e-mail
@@ -101,7 +108,7 @@ export default async function handler(req, res) {
       ],
       mode: 'payment',
 
-      // ⚙️ CONTROLE DINÂMICO: Se tiver histórico, o Stripe oculta/invalida o campo de cupom
+      // CONTROLE DINÂMICO NO STRIPE
       allow_promotion_codes: permitirCupom,
 
       success_url: `https://wa.me/5521969254192?text=Pagamento%20realizado%20com%20sucesso!%20Matricula:%20${encodeURIComponent(matricula)}`,
@@ -116,12 +123,14 @@ export default async function handler(req, res) {
       },
     });
 
+    console.log(`🚀 [CHECKOUT CRIADO] Sessão do Stripe gerada com sucesso. URL: ${session.url} | Cupom permitido: ${permitirCupom}`);
+
     return res.status(200).json({
       checkout_url: session.url
     });
 
   } catch (error) {
-    console.error('Erro no Stripe Checkout:', error);
+    console.error('❌ Erro crítico no Stripe Checkout:', error);
     return res.status(500).json({ error: error.message || 'Erro interno no servidor ao criar o Checkout.' });
   }
 }
