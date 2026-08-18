@@ -304,29 +304,42 @@ export default async function handler(req, res) {
 
     console.log(`📱 [CHECKOUT] Matrícula e Nome validados com sucesso: ${matriculaLimpa} - ${nomeCadastrado}`);
 
-    // 🛑 3. VALIDAÇÃO DE ANTI-ABUSO POR DEVICE_ID NO SUPABASE
+    // 🛑 3. VERIFICAÇÃO DE HISTÓRICO NO SUPABASE PARA DEFINIR O ALLOW-PROMOTIONS
     let permitirCupom = true;
 
-    if (device_id) {
-      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-      if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const { data: historicoAparelho, error: supabaseError } = await supabase
-          .from('licencas')
-          .select('id, tipo')
-          .eq('device_id', device_id.trim())
+      let colabIdEncontrado = null;
+      if (email) {
+        const { data: colabData } = await supabase
+          .from('colaboradores')
+          .select('id')
+          .eq('email', email.trim().toLowerCase())
           .maybeSingle();
+        if (colabData) colabIdEncontrado = colabData.id;
+      }
+
+      let queryVerificacao = supabase.from('licencas').select('id, tipo');
+      const condicoes = [];
+      if (colabIdEncontrado) condicoes.push(`colaborador_id.eq.${colabIdEncontrado}`);
+      if (whatsapp) condicoes.push(`whatsapp.eq.${whatsapp.trim()}`);
+      if (device_id) condicoes.push(`device_id.eq.${device_id.trim()}`);
+
+      if (condicoes.length > 0) {
+        queryVerificacao = queryVerificacao.or(condicoes.join(','));
+        const { data: licencaAnterior, error: supabaseError } = await queryVerificacao;
 
         if (supabaseError) {
           console.error('❌ Erro ao consultar Supabase:', supabaseError);
         }
 
-        if (historicoAparelho) {
+        if (licencaAnterior && licencaAnterior.length > 0) {
           permitirCupom = false;
-          console.log(`🔒 [ANTI-ABUSO] Aparelho com histórico (${device_id.trim()}). Cupom desativado.`);
+          console.log(`🔒 [ANTI-ABUSO] Histórico encontrado para ${email} / ${whatsapp} / ${device_id}. allow_promotion_codes definido como false.`);
         }
       }
     }
@@ -352,7 +365,7 @@ export default async function handler(req, res) {
       customerId = newCustomer.id;
     }
 
-    // 🎟️ 5. Criação da Checkout Session (Com o device_id incluído nos metadados para o webhook)
+    // 🎟️ 5. Criação da Checkout Session (Definindo allow_promotion_codes de forma dinâmica)
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'boleto'],
       customer: customerId,
