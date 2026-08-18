@@ -72,16 +72,6 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
       conteudo_destaque: licenseKey,
       detalhe_rodape: `⏱️ Válido até: ${dataValidadeFormatada}`
     };
-  } else if (tipoStatus === 'bloqueado') {
-    configuracao = {
-      cor_fundo: 'linear-gradient(135deg, #dc2626, #991b1b)', // Vermelho
-      cor_borda: '#ef4444',
-      cor_texto: '#fca5a5',
-      titulo_email: 'Cupom Não Aplicado 🛑',
-      mensagem_corpo: 'Identificamos que você já possui histórico em nosso aplicativo. O cupom de degustação é exclusivo para o primeiro acesso de novos usuários.',
-      conteudo_destaque: 'CUPOM INDISPONÍVEL',
-      detalhe_rodape: 'Adquira uma licença regular para continuar usando todas as funções do aplicativo.'
-    };
   }
 
   const payload = {
@@ -116,7 +106,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
   }
 }
 
-async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao, isDegustacao, isBloqueado = false) {
+async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao, isDegustacao) {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
 
@@ -125,12 +115,7 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
   let cor = 16711680; // Vermelho/Laranja
   let conteudoBot = 'Novo pagamento e acesso liberado!';
 
-  if (isBloqueado) {
-    titulo = '🛑 Tentativa de Abuso Bloqueada';
-    descricao = 'O usuário tentou reutilizar o cupom de degustação, mas já possui histórico de licenças.';
-    cor = 15158332; // Vermelho escuro de alerta
-    conteudoBot = '⚠️ Alerta de Segurança: Tentativa de reuso de degustação barrada!';
-  } else if (isDegustacao) {
+  if (isDegustacao) {
     titulo = '🎁 Licença de Degustação Gerada (3 Dias)';
     descricao = 'Cupom CAD2026 aplicado! Licença de teste grátis gerada para o colaborador.';
     cor = 3447003; // Azul
@@ -142,7 +127,7 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
     conteudoBot = 'Renovação de licença concluída!';
   }
 
-  const tipoTexto = isBloqueado ? 'Bloqueado (Reuso de Degustação)' : (isDegustacao ? 'Degustação (3 Dias)' : (isRenovacao ? 'Renovação' : 'Novo Colaborador'));
+  const tipoTexto = isDegustacao ? 'Degustação (3 Dias)' : (isRenovacao ? 'Renovação' : 'Novo Colaborador');
 
   const fields = [
     { name: 'Tipo', value: tipoTexto, inline: true },
@@ -150,12 +135,9 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
     { name: 'WhatsApp', value: whatsapp || 'Não informado', inline: true },
     { name: 'E-mail', value: customerEmail, inline: true },
     { name: 'Data da Operação', value: dataAquisicao, inline: true },
+    { name: 'Código de Acesso', value: licenseKey, inline: true },
+    { name: 'Válido até', value: dataValidade, inline: true },
   ];
-
-  if (!isBloqueado) {
-    fields.push({ name: 'Código de Acesso', value: licenseKey, inline: true });
-    fields.push({ name: 'Válido até', value: dataValidade, inline: true });
-  }
 
   const payload = {
     username: 'Stripe Pix Bot',
@@ -282,59 +264,6 @@ export default async function handler(req, res) {
       }
 
       const supabase = createClient(supabaseUrl, supabaseKey);
-
-      // 🛑 TRAVA ANTI-ABUSO BLINDADA COM EMAILJS + DISCORD
-      if (isDegustacao && (customerEmail || whatsapp || deviceId)) {
-        let colabIdEncontrado = null;
-        if (customerEmail) {
-          const { data: colabData } = await supabase
-            .from('colaboradores')
-            .select('id')
-            .eq('email', customerEmail)
-            .maybeSingle();
-          if (colabData) colabIdEncontrado = colabData.id;
-        }
-
-        let queryVerificacao = supabase.from('licencas').select('id, tipo');
-        const condicoes = [];
-        if (colabIdEncontrado) condicoes.push(`colaborador_id.eq.${colabIdEncontrado}`);
-        if (whatsapp) condicoes.push(`whatsapp.eq.${whatsapp}`);
-        if (deviceId) condicoes.push(`device_id.eq.${deviceId}`); // 📱 Inclui device_id na checagem de abuso
-
-        if (condicoes.length > 0) {
-          queryVerificacao = queryVerificacao.or(condicoes.join(','));
-          const { data: licencaAnterior } = await queryVerificacao;
-
-          if (licencaAnterior && licencaAnterior.length > 0) {
-            console.warn(`🛑 TENTATIVA DE ABUSO BLOQUEADA: O usuário ${customerEmail} / ${whatsapp} / ${deviceId} já possui histórico de licenças.`);
-
-            const agora = new Date();
-            const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-            const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
-
-            await Promise.allSettled([
-              enviarEmailJS(customerEmail, nome || 'Cliente', '', '', 'bloqueado'),
-              enviarWebhookDiscord(
-                '',
-                customerEmail || 'Não informado',
-                nome || 'Cliente',
-                colaboradorFormatado,
-                whatsapp,
-                dataAquisicaoFormatada,
-                '',
-                false,
-                true,
-                true // isBloqueado = true
-              )
-            ]);
-
-            return res.status(200).json({ 
-              status: 'blocked', 
-              message: "Cupom de degustação restrito apenas a novos clientes." 
-            });
-          }
-        }
-      }
 
       let diasValidade = isDegustacao ? 3 : 30;
       const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
@@ -474,8 +403,7 @@ export default async function handler(req, res) {
           dataAquisicaoFormatada,
           dataValidadeFormatada,
           isRenovacao,
-          isDegustacao,
-          false
+          isDegustacao
         )
       ]);
 
