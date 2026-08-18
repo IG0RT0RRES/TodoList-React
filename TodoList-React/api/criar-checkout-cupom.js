@@ -352,7 +352,7 @@ export default async function handler(req, res) {
       customerId = newCustomer.id;
     }
 
-    // 🎟️ 5. Criação da Checkout Session
+    // 🎟️ 5. Criação da Checkout Session (Com o device_id incluído nos metadados para o webhook)
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'boleto'],
       customer: customerId,
