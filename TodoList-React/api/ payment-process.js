@@ -230,6 +230,7 @@ export default async function handler(req, res) {
 
     const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || '';
     const matricula = metadata.matricula || '';
+    const deviceId = metadata.device_id || ''; // 📱 Captura o device_id dos metadados
 
     let customerEmail = '';
     if (objectData.customer_details?.email) {
@@ -283,7 +284,7 @@ export default async function handler(req, res) {
       const supabase = createClient(supabaseUrl, supabaseKey);
 
       // 🛑 TRAVA ANTI-ABUSO BLINDADA COM EMAILJS + DISCORD
-      if (isDegustacao && (customerEmail || whatsapp)) {
+      if (isDegustacao && (customerEmail || whatsapp || deviceId)) {
         let colabIdEncontrado = null;
         if (customerEmail) {
           const { data: colabData } = await supabase
@@ -298,20 +299,19 @@ export default async function handler(req, res) {
         const condicoes = [];
         if (colabIdEncontrado) condicoes.push(`colaborador_id.eq.${colabIdEncontrado}`);
         if (whatsapp) condicoes.push(`whatsapp.eq.${whatsapp}`);
+        if (deviceId) condicoes.push(`device_id.eq.${deviceId}`); // 📱 Inclui device_id na checagem de abuso
 
         if (condicoes.length > 0) {
           queryVerificacao = queryVerificacao.or(condicoes.join(','));
           const { data: licencaAnterior } = await queryVerificacao;
 
           if (licencaAnterior && licencaAnterior.length > 0) {
-            console.warn(`🛑 TENTATIVA DE ABUSO BLOQUEADA: O usuário ${customerEmail} / ${whatsapp} já possui histórico de licenças.`);
+            console.warn(`🛑 TENTATIVA DE ABUSO BLOQUEADA: O usuário ${customerEmail} / ${whatsapp} / ${deviceId} já possui histórico de licenças.`);
 
             const agora = new Date();
-            // Fuso horário do Brasil fixado
             const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
             const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
 
-            // Dispara e-mail de alerta e notificação Discord sem travar a resposta
             await Promise.allSettled([
               enviarEmailJS(customerEmail, nome || 'Cliente', '', '', 'bloqueado'),
               enviarWebhookDiscord(
@@ -423,7 +423,8 @@ export default async function handler(req, res) {
           .update({
             data_validade: novaDataValidade.toISOString(),
             status: 'ativa',
-            tipo: tipoLicenca
+            tipo: tipoLicenca,
+            ...(deviceId && { device_id: deviceId }) // 📱 Atualiza o device_id caso venha preenchido
           })
           .eq('chave', chaveUso);
 
@@ -444,6 +445,7 @@ export default async function handler(req, res) {
           status: 'ativa',
           tipo: tipoLicenca,
           whatsapp: whatsapp || null,
+          device_id: deviceId || null, // 📱 Insere o device_id na nova licença gerada
           admin: false
         }]);
 
