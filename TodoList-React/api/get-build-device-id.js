@@ -1,15 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req, res) {
-  // Permite apenas método POST (já que o app vai enviar a chave no corpo da requisição)
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método não permitido. Use POST.' });
+  // Aceita tanto POST quanto GET para facilitar testes no navegador
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    return res.status(405).json({ error: 'Método não permitido. Use POST ou GET.' });
   }
 
   try {
-    const { chave } = req.body;
+    // Pega a chave do body (se for POST) ou da URL/query string (se for GET)
+    const chave = req.method === 'POST' ? req.body.chave : req.query.chave;
 
-    // Valida se a chave foi enviada
+    // Valida se a chave foi informada
     if (!chave) {
       return res.status(400).json({ error: 'A chave de licença não foi informada.' });
     }
@@ -23,7 +24,7 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Busca a licença e os dados do colaborador correspondente usando relacionamento
+    // Busca a licença e os dados do colaborador correspondente
     const { data: licencaData, error: errLicenca } = await supabase
       .from('licencas')
       .select(`
@@ -44,7 +45,6 @@ export default async function handler(req, res) {
       throw new Error(`Erro ao consultar licença: ${errLicenca.message}`);
     }
 
-    // Se a chave não existir no banco
     if (!licencaData) {
       return res.status(404).json({ 
         status: 'error', 
@@ -52,7 +52,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Verifica se a licença está ativa (considerando a grafia 'ativa' do seu banco)
     if (licencaData.status !== 'ativa') {
       return res.status(403).json({ 
         status: 'error', 
@@ -60,7 +59,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Valida se a licença está vinculada a algum colaborador
     if (!licencaData.colaboradores) {
       return res.status(400).json({ 
         status: 'error', 
@@ -70,7 +68,6 @@ export default async function handler(req, res) {
 
     const colaborador = licencaData.colaboradores;
 
-    // Retorna os dados necessários para o aplicativo estruturar o device_id e liberar o uso
     return res.status(200).json({
       status: 'sucesso',
       mensagem: 'Licença válida e ativa!',
