@@ -111,10 +111,10 @@ export default async function handler(req, res) {
 
     // 3. Mecânica Anti-Compartilhamento (Vínculo de Device ID)
     if (!licenca.device_id) {
-      await supabase
+      /*await supabase
         .from('licencas')
         .update({ device_id: device_id })
-        .eq('chave', chaveFormatada);
+        .eq('chave', chaveFormatada);*/
     } else if (licenca.device_id !== device_id) {
       return res.status(403).json({
         autorizado: false,
