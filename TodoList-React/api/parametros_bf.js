@@ -29,8 +29,8 @@ export default async function handler(req, res) {
     }
 
     // Valores retornados do banco com fallback padrão caso a tabela esteja vazia
-    const versao_minima = configApp?.versao_minima || "1.1.0";
-    const url_loja = configApp?.url_loja || "https://github.com/IG0RT0RRES";
+    const versao_minima = configApp?.versao_minima || "1.0.0";
+    const url_loja = configApp?.url_loja || "https://play.google.com/store/apps/details?id=com.baixaforms.app";
     const modo_manutencao = configApp?.modo_manutencao ?? false;
     const mensagem_manutencao = configApp?.mensagem_manutencao || "Estamos realizando melhorias e atualizações no sistema. Por favor, tente novamente em alguns instantes.";
 
