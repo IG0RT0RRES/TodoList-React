@@ -44,7 +44,21 @@ export default async function handler(req, res) {
     const { data: projetosData, error: errProj } = await supabase.from('projetos').select('nome');
     if (errProj) throw new Error(`Erro em projetos: ${errProj.message}`);
 
-    const { data: colaboradoresData, error: errColab } = await supabase.from('colaboradores').select('matricula, nome');
+    // 3. Busca apenas colaboradores com licença válida e ativa
+    const dataAtual = new Date().toISOString();
+    const { data: colaboradoresData, error: errColab } = await supabase
+      .from('colaboradores')
+      .select(`
+        matricula, 
+        nome,
+        licencas!inner (
+          data_validade,
+          status
+        )
+      `)
+      .gt('licencas.data_validade', dataAtual)
+      .eq('licencas.status', 'ativo');
+
     if (errColab) throw new Error(`Erro em colaboradores: ${errColab.message}`);
 
     // Mapeia os dados para o formato original
