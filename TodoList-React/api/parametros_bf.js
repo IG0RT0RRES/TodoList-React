@@ -44,20 +44,17 @@ export default async function handler(req, res) {
     const { data: projetosData, error: errProj } = await supabase.from('projetos').select('nome');
     if (errProj) throw new Error(`Erro em projetos: ${errProj.message}`);
 
-    // 3. Busca apenas colaboradores com licença válida e ativa
-    const dataAtual = new Date().toISOString();
+    // 3. Busca colaboradores apenas filtrando pelo status 'ativa' na tabela de licenças
     const { data: colaboradoresData, error: errColab } = await supabase
       .from('colaboradores')
       .select(`
         matricula, 
         nome,
         licencas!inner (
-          data_validade,
           status
         )
       `)
-      .gt('licencas.data_validade', dataAtual)
-      .eq('licencas.status', 'ativo');
+      .eq('licencas.status', 'ativa');
 
     if (errColab) throw new Error(`Erro em colaboradores: ${errColab.message}`);
 
