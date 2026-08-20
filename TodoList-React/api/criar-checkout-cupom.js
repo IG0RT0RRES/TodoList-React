@@ -314,23 +314,24 @@ export default async function handler(req, res) {
       const supabase = createClient(supabaseUrl, supabaseKey);
 
       let colabIdEncontrado = null;
-      if (email) {
-        const { data: colabData } = await supabase
-          .from('colaboradores')
-          .select('id')
-          .eq('email', email.trim().toLowerCase())
-          .maybeSingle();
-        if (colabData) colabIdEncontrado = colabData.id;
+
+      // 🔍 Procura o colaborador primeiro na tabela 'colaboradores' tanto pelo e-mail quanto pela matrícula
+      const { data: colabData } = await supabase
+        .from('colaboradores')
+        .select('id')
+        .or(`matricula.eq.${matriculaLimpa},email.eq.${email.trim().toLowerCase()}`)
+        .maybeSingle();
+
+      if (colabData) {
+        colabIdEncontrado = colabData.id;
       }
 
       let queryVerificacao = supabase.from('licencas').select('id, tipo');
       const condicoes = [];
+
       if (colabIdEncontrado) condicoes.push(`colaborador_id.eq.${colabIdEncontrado}`);
       if (whatsapp) condicoes.push(`whatsapp.eq.${whatsapp.trim()}`);
       if (device_id) condicoes.push(`device_id.eq.${device_id.trim()}`);
-      
-      // ✨ Adicionada a validação por matrícula para barrar reuso de cupom caso a matrícula já tenha histórico
-      if (matriculaLimpa) condicoes.push(`matricula.eq.${matriculaLimpa}`);
 
       if (condicoes.length > 0) {
         queryVerificacao = queryVerificacao.or(condicoes.join(','));
