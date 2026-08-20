@@ -273,7 +273,7 @@ export default async function handler(req, res) {
       throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
-    const { matricula, nome, whatsapp, email, cupom, device_id } = req.body || {};
+    const { matricula, nome, whatsapp, email, cupom } = req.body || {};
 
     if (!matricula || !nome || !whatsapp || !email) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
@@ -331,7 +331,6 @@ export default async function handler(req, res) {
 
       if (colabIdEncontrado) condicoes.push(`colaborador_id.eq.${colabIdEncontrado}`);
       if (whatsapp) condicoes.push(`whatsapp.eq.${whatsapp.trim()}`);
-      if (device_id) condicoes.push(`device_id.eq.${device_id.trim()}`);
 
       if (condicoes.length > 0) {
         queryVerificacao = queryVerificacao.or(condicoes.join(','));
@@ -343,7 +342,7 @@ export default async function handler(req, res) {
 
         if (licencaAnterior && licencaAnterior.length > 0) {
           permitirCupom = false;
-          console.log(`🔒 [ANTI-ABUSO] Histórico encontrado para Matrícula ${matriculaLimpa} / E-mail ${email} / WhatsApp ${whatsapp} / Device ID ${device_id}. allow_promotion_codes definido como false.`);
+          console.log(`🔒 [ANTI-ABUSO] Histórico encontrado para Matrícula ${matriculaLimpa} / E-mail ${email} / WhatsApp ${whatsapp}. allow_promotion_codes definido como false.`);
         }
       }
     }
@@ -368,7 +367,27 @@ export default async function handler(req, res) {
       });
       customerId = newCustomer.id;
     }
+    // Obtem os valores pré-definidos na supabase valor da licença
+    // 🔍 3.5. Buscar o preço atualizado na tabela 'configuracoes_app' do Supabase
+    let precoUnitario = 1500; // Valor padrão de fallback
 
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const { data: configData, error: configError } = await supabase
+        .from('configuracoes_app')
+        .select('preco_licenca_centavos')
+        .limit(1)
+        .maybeSingle();
+
+      if (!configError && configData && configData.preco_licenca_centavos) {
+        precoUnitario = configData.preco_licenca_centavos;
+        console.log(`💰 [PREÇO DINÂMICO]: Usando valor de R$ ${(precoUnitario / 100).toFixed(2)} do Supabase.`);
+      } else {
+        console.warn('⚠️ Não foi possível buscar o preço na tabela configuracoes_app, usando padrão de R$ 15,00.');
+      }
+    }
+    
     // 🎟️ 5. Criação da Checkout Session (Definindo allow_promotion_codes de forma dinâmica)
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'boleto'],
@@ -381,7 +400,7 @@ export default async function handler(req, res) {
               name: 'Licença de Acesso - Gestor de Baixas',
               description: `Ativação para a matrícula ${matriculaLimpa} - ${nomeCadastrado}`,
             },
-            unit_amount: 1500,
+            unit_amount: precoUnitario,
           },
           quantity: 1,
         },
@@ -395,7 +414,6 @@ export default async function handler(req, res) {
         nome: nomeCadastrado,
         whatsapp,
         email,
-        device_id: device_id || '',
         cupom: permitirCupom ? (cupom || 'nenhum') : 'bloqueado_reuso',
       },
     });
