@@ -36,18 +36,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { chave, device_id } = req.body;
+    const { chave } = req.body;
 
     if (!chave) {
       return res.status(400).json({ autorizado: false, motivo: 'Chave não informada.' });
-    }
-
-    if (!device_id) {
-      return res.status(400).json({ autorizado: false, motivo: 'Identificador do dispositivo não informado.' });
-    }
-
+    }    
+    
     const chaveFormatada = chave.trim().toUpperCase();
-
+    
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -66,7 +62,6 @@ export default async function handler(req, res) {
         chave,
         status,
         data_validade,
-        device_id,
         admin,
         tipo,
         colaboradores (
@@ -108,20 +103,7 @@ export default async function handler(req, res) {
         motivo: `Sua licença expirou em ${dataValidadeFormatada}. Adquira um novo acesso.`,
       });
     }
-
-    // 3. Mecânica Anti-Compartilhamento (Vínculo de Device ID)
-    if (!licenca.device_id) {
-      /*await supabase
-        .from('licencas')
-        .update({ device_id: device_id })
-        .eq('chave', chaveFormatada);*/
-    } else if (licenca.device_id !== device_id) {
-      return res.status(403).json({
-        autorizado: false,
-        motivo: 'Esta licença já está vinculada a outro usuário. O compartilhamento não é permitido.',
-      });
-    }
-
+    
     // 4. Mapeia a flag de administrador e o tipo de licença
     const isAdmin = Boolean(licenca.admin);
     const tipoLicenca = licenca.tipo || 'mensal'; // Fallback para 'mensal' se não houver valor
