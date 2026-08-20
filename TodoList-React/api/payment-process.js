@@ -353,7 +353,7 @@ export default async function handler(req, res) {
             data_validade: novaDataValidade.toISOString(),
             status: 'ativa',
             tipo: tipoLicenca,
-            ...(deviceId && { device_id: deviceId }) // 📱 Atualiza o device_id caso venha preenchido
+           // ...(deviceId && { device_id: deviceId }) // 📱 Atualiza o device_id caso venha preenchido
           })
           .eq('chave', chaveUso);
 
