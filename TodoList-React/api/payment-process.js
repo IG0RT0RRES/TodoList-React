@@ -332,8 +332,9 @@ export default async function handler(req, res) {
       let chaveUso = '';
       let isRenovacao = false;
       
-      // 🕒 Ajusta o objeto 'agora' para o horário correto do Brasil (America/Sao_Paulo)
-      const agoraStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      // 🕒 Ajusta o objeto 'agora' para o horário correto do Brasil (America/Sao_Paulo)      
+      const agoraStr = new Date()
+      agoraStr.setHours(agoraStr.getHours() - 3);      
       const agora = new Date(agoraStr);
       
       let novaDataValidade = new Date(agora);
