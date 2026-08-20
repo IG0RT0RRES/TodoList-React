@@ -328,6 +328,9 @@ export default async function handler(req, res) {
       if (colabIdEncontrado) condicoes.push(`colaborador_id.eq.${colabIdEncontrado}`);
       if (whatsapp) condicoes.push(`whatsapp.eq.${whatsapp.trim()}`);
       if (device_id) condicoes.push(`device_id.eq.${device_id.trim()}`);
+      
+      // ✨ Adicionada a validação por matrícula para barrar reuso de cupom caso a matrícula já tenha histórico
+      if (matriculaLimpa) condicoes.push(`matricula.eq.${matriculaLimpa}`);
 
       if (condicoes.length > 0) {
         queryVerificacao = queryVerificacao.or(condicoes.join(','));
@@ -339,7 +342,7 @@ export default async function handler(req, res) {
 
         if (licencaAnterior && licencaAnterior.length > 0) {
           permitirCupom = false;
-          console.log(`🔒 [ANTI-ABUSO] Histórico encontrado para ${email} / ${whatsapp} / ${device_id}. allow_promotion_codes definido como false.`);
+          console.log(`🔒 [ANTI-ABUSO] Histórico encontrado para Matrícula ${matriculaLimpa} / E-mail ${email} / WhatsApp ${whatsapp} / Device ID ${device_id}. allow_promotion_codes definido como false.`);
         }
       }
     }
