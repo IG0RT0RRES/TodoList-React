@@ -212,7 +212,7 @@ export default async function handler(req, res) {
 
     const nome = metadata.nome || metadata.matricula_nome || objectData.customer_details?.name || '';
     const matricula = metadata.matricula || '';
-    const deviceId = metadata.device_id || ''; // 📱 Captura o device_id dos metadados
+    const deviceId = metadata.device_id || '';
 
     let customerEmail = '';
     if (objectData.customer_details?.email) {
@@ -223,7 +223,7 @@ export default async function handler(req, res) {
       customerEmail = metadata.email;
     }
 
-    // Normalização do E-mail (evita falhas de caixa alta/baixa)
+    // Normalização do E-mail
     customerEmail = customerEmail.trim().toLowerCase();
 
     const whatsapp = (
@@ -331,8 +331,12 @@ export default async function handler(req, res) {
 
       let chaveUso = '';
       let isRenovacao = false;
-      const agora = new Date();
-      let novaDataValidade = new Date();
+      
+      // 🕒 Ajusta o objeto 'agora' para o horário correto do Brasil (America/Sao_Paulo)
+      const agoraStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      const agora = new Date(agoraStr);
+      
+      let novaDataValidade = new Date(agora);
 
       if (licencaExistente) {
         isRenovacao = true;
@@ -353,7 +357,7 @@ export default async function handler(req, res) {
             data_validade: novaDataValidade.toISOString(),
             status: 'ativa',
             tipo: tipoLicenca,
-           // ...(deviceId && { device_id: deviceId }) // 📱 Atualiza o device_id caso venha preenchido
+            // ...(deviceId && { device_id: deviceId })
           })
           .eq('chave', chaveUso);
 
@@ -374,7 +378,7 @@ export default async function handler(req, res) {
           status: 'ativa',
           tipo: tipoLicenca,
           whatsapp: whatsapp || null,
-  //        device_id: deviceId || null, // 📱 Insere o device_id na nova licença gerada
+          // device_id: deviceId || null,
           admin: false
         }]);
 
@@ -391,7 +395,6 @@ export default async function handler(req, res) {
 
       const statusEmail = isDegustacao ? 'degustacao' : (isRenovacao ? 'renovacao' : 'novo');
 
-      // Executa os envios em paralelo garantindo resiliência
       await Promise.allSettled([
         enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada, statusEmail),
         enviarWebhookDiscord(
