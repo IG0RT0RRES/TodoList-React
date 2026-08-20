@@ -374,7 +374,7 @@ export default async function handler(req, res) {
           status: 'ativa',
           tipo: tipoLicenca,
           whatsapp: whatsapp || null,
-          device_id: deviceId || null, // 📱 Insere o device_id na nova licença gerada
+  //        device_id: deviceId || null, // 📱 Insere o device_id na nova licença gerada
           admin: false
         }]);
 
