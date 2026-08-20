@@ -19,7 +19,7 @@ function App() {
               <Route path="/Cadastro" element={<AuthForm/>}/>
               <Route path="/LeaderBoard" element={<LeaderBoard/>}/>
               <Route path="/Exclusao" element={<ExclusaoDeDados/>}/>
-              /*<Route path="/Pagamentos" element={<Payments/>}/>*/
+              {/*<Route path="/Pagamentos" element={<Payments/>}/>*/}
             </Routes>
           </BrowserRouter>
         </div>)
