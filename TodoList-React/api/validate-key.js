@@ -127,7 +127,10 @@ export default async function handler(req, res) {
       projeto: colab.projeto || ""
     };
 
-    await dispararWebhook(`🔑 **Acesso ao App Realizado** ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuarioStr}\n- Validade: ${dataValidadeFormatada}`);
+    if(!isAdmin)
+    {
+      await dispararWebhook(`🔑 **Acesso ao App Realizado** ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuarioStr}\n- Validade: ${dataValidadeFormatada}`);
+    }
 
     return res.status(200).json({
       autorizado: true,
