@@ -5,6 +5,14 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // 1. Validar a Chave Secreta enviada pelo App no Header
+  const appToken = req.headers['x-app-token'];
+  const tokenSecretoServidor = process.env.APP_SECRET_TOKEN;
+
+  if (!appToken || appToken !== tokenSecretoServidor) {
+    return res.status(403).json({ error: 'Acesso negado. Requisição não autorizada.' });
+  }
+  
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
