@@ -8,16 +8,11 @@ export default function Payments() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Função auxiliar para tentar capturar o device_id (caso venha por parâmetro na URL ou window nativo do app)
-  const getDeviceIdentifier = () => {
-    const params = new URLSearchParams(window.location.search);
-    
   const handleProcessarPagamento = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // 🚀 Apontando para o novo endpoint atualizado com a regra de cupom e device_id
       const response = await fetch('/api/create-checkout-cupom-with-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -25,14 +20,13 @@ export default function Payments() {
           matricula, 
           nome, 
           whatsapp, 
-          email
+          email 
         })
       });
 
       const data = await response.json();
 
       if (response.ok && data.checkout_url) {
-        // Redireciona o usuário para o ambiente seguro de pagamento do Stripe
         window.location.href = data.checkout_url;
       } else {
         alert('Erro ao iniciar checkout: ' + (data.error || 'Erro desconhecido'));
