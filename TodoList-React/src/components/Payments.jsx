@@ -11,24 +11,10 @@ export default function Payments() {
   // Função auxiliar para tentar capturar o device_id (caso venha por parâmetro na URL ou window nativo do app)
   const getDeviceIdentifier = () => {
     const params = new URLSearchParams(window.location.search);
-    let deviceId = params.get('device_id'); // Ex: se o app abrir a página passando via query string
     
-    if (!deviceId) {
-      // Fallback seguro caso não venha na URL: usa um ID salvo no localStorage ou gera um temporário para a sessão
-      deviceId = localStorage.getItem('app_device_id');
-      if (!deviceId) {
-        deviceId = 'web_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-        localStorage.setItem('app_device_id', deviceId);
-      }
-    }
-    return deviceId;
-  };
-
   const handleProcessarPagamento = async (e) => {
     e.preventDefault();
     setLoading(true);
-
-    const deviceId = getDeviceIdentifier();
 
     try {
       // 🚀 Apontando para o novo endpoint atualizado com a regra de cupom e device_id
@@ -39,8 +25,7 @@ export default function Payments() {
           matricula, 
           nome, 
           whatsapp, 
-          email, 
-          device_id: deviceId 
+          email
         })
       });
 
