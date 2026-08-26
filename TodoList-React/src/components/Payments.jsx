@@ -32,7 +32,7 @@ export default function Payments() {
 
     try {
       // 🚀 Apontando para o novo endpoint atualizado com a regra de cupom e device_id
-      const response = await fetch('/api/criar-checkout-cupom', {
+      const response = await fetch('/api/create-checkout-cupom-with-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
