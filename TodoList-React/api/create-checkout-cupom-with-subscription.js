@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY_SUBSCRIPTION);
 
 // 📋 BASE DE FUNCIONÁRIOS OFICIAL (Em caixa alta e sem acentos)
 const FUNCIONARIOS_VALIDOS = {
