@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY_SUBSCRIPTION);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // 📋 BASE DE FUNCIONÁRIOS OFICIAL (Em caixa alta e sem acentos)
 const FUNCIONARIOS_VALIDOS = {
@@ -269,8 +269,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!process.env.STRIPE_SECRET_KEY_SUBSCRIPTION) {
-      throw new Error('A chave STRIPE_SECRET_KEY_SUBSCRIPTION não foi configurada nas variáveis de ambiente.');
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
     const { matricula, nome, whatsapp, email, cupom } = req.body || {};
