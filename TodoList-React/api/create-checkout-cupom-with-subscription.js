@@ -273,7 +273,7 @@ export default async function handler(req, res) {
       throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
-    const { matricula, nome, whatsapp, email, cupom } = req.body || {};
+    const { matricula, nome, whatsapp, email } = req.body || {};
 
     if (!matricula || !nome || !whatsapp || !email) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
@@ -304,8 +304,8 @@ export default async function handler(req, res) {
 
     console.log(`📱 [CHECKOUT] Matrícula e Nome validados com sucesso: ${matriculaLimpa} - ${nomeCadastrado}`);
 
-    // 🛑 3. VERIFICAÇÃO DE HISTÓRICO NO SUPABASE PARA DEFINIR O ALLOW-PROMOTIONS
-    let permitirCupom = true;
+    // 🛑 3. VERIFICAÇÃO DE HISTÓRICO NO SUPABASE PARA PERMITIR O TRIAL (Anti-Abuso)
+    let permitirTrial = true;
 
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -315,7 +315,6 @@ export default async function handler(req, res) {
 
       let colabIdEncontrado = null;
 
-      // 🔍 Procura o colaborador primeiro na tabela 'colaboradores' tanto pelo e-mail quanto pela matrícula
       const { data: colabData } = await supabase
         .from('colaboradores')
         .select('id')
@@ -341,8 +340,8 @@ export default async function handler(req, res) {
         }
 
         if (licencaAnterior && licencaAnterior.length > 0) {
-          permitirCupom = false;
-          console.log(`🔒 [ANTI-ABUSO] Histórico encontrado para Matrícula ${matriculaLimpa} / E-mail ${email} / WhatsApp ${whatsapp}. allow_promotion_codes definido como false.`);
+          permitirTrial = false;
+          console.log(`🔒 [ANTI-ABUSO] Histórico encontrado para Matrícula ${matriculaLimpa}. O trial de 3 dias será desativado.`);
         }
       }
     }
@@ -368,7 +367,7 @@ export default async function handler(req, res) {
       customerId = newCustomer.id;
     }
 
-    // 🔍 3.5. Buscar o preço atualizado na tabela 'configuracoes_app' do Supabase
+    // 🔍 5. Buscar o preço atualizado na tabela 'configuracoes_app' do Supabase
     let precoUnitario = 1500; // Valor padrão de fallback
 
     if (supabaseUrl && supabaseKey) {
@@ -388,9 +387,9 @@ export default async function handler(req, res) {
       }
     }
     
-    // 🎟️ 5. Criação da Checkout Session (Modo Assinatura e Apenas Cartão)
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'], // 👈 Apenas Cartão (Boleto removido)
+    // 🎟️ 6. Criação da Checkout Session (Modo Assinatura com Trial Dinâmico)
+    const sessionConfig = {
+      payment_method_types: ['card'],
       customer: customerId,
       line_items: [
         {
@@ -402,14 +401,14 @@ export default async function handler(req, res) {
             },
             unit_amount: precoUnitario,
             recurring: {
-              interval: 'month', // 👈 Configura a recorrência mensal
+              interval: 'month',
             },
           },
           quantity: 1,
         },
       ],
-      mode: 'subscription', // 👈 Alterado para modo assinatura recorrente
-      allow_promotion_codes: permitirCupom,
+      mode: 'subscription',
+      allow_promotion_codes: false, // Desativado pois o trial agora é nativo
       success_url: `https://wa.me/5521969254192?text=Assinatura%20realizada%20com%20sucesso!%20Matricula:%20${encodeURIComponent(matriculaLimpa)}`,
       cancel_url: `https://wa.me/5521969254192?text=A%20assinatura%20da%20licenca%20foi%20cancelada.`,
       metadata: {
@@ -417,9 +416,12 @@ export default async function handler(req, res) {
         nome: nomeCadastrado,
         whatsapp,
         email,
-        cupom: permitirCupom ? (cupom || 'nenhum') : 'bloqueado_reuso',
       },
-      subscription_data: {
+    };
+
+    // Adiciona o período de testes de 3 dias apenas se o usuário for elegível (sem histórico prévio)
+    if (permitirTrial) {
+      sessionConfig.subscription_data = {
         trial_period_days: 3,
         metadata: {
           matricula: matriculaLimpa,
@@ -427,8 +429,19 @@ export default async function handler(req, res) {
           whatsapp,
           email,
         },
-      },
-    });
+      };
+    } else {
+      sessionConfig.subscription_data = {
+        metadata: {
+          matricula: matriculaLimpa,
+          nome: nomeCadastrado,
+          whatsapp,
+          email,
+        },
+      };
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
 
     return res.status(200).json({
       checkout_url: session.url
