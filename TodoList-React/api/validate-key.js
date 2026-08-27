@@ -54,7 +54,6 @@ export default async function handler(req, res) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 1. Buscar a licença no Supabase junto com os dados e preferências do colaborador
-    // Seleciona explicitamente os campos da licença (incluindo 'tipo') e os dados do colaborador
     const { data: licenca, error: fetchError } = await supabase
       .from('licencas')
       .select(`
@@ -87,38 +86,29 @@ export default async function handler(req, res) {
     const agora = new Date();
     const dataValidade = new Date(licenca.data_validade);
     const dataValidadeFormatada = dataValidade.toLocaleDateString('pt-BR');
+    const estaExpirada = agora > dataValidade || licenca.status === 'expirada';
 
-    // 2. CASO: Chave EXPIRADA ou INATIVA
-    if (agora > dataValidade || licenca.status !== 'ativa') {
-      if (licenca.status !== 'expirada') {
-        await supabase
-          .from('licencas')
-          .update({ status: 'expirada' })
-          .eq('chave', chaveFormatada);
-      }
-
-      return res.status(403).json({
-        autorizado: false,
-        status: 'expirada',
-        motivo: `Sua licença expirou em ${dataValidadeFormatada}. Adquira um novo acesso.`,
-      });
+    // Se estiver expirada no banco, garante a atualização do status
+    if (estaExpirada && licenca.status !== 'expirada') {
+      await supabase
+        .from('licencas')
+        .update({ status: 'expirada' })
+        .eq('chave', chaveFormatada);
     }
-    
-    // 4. Mapeia a flag de administrador e o tipo de licença
+
+    // 2. Mapeia a flag de administrador e o tipo de licença
     const isAdmin = Boolean(licenca.admin);
-    const tipoLicenca = licenca.tipo || 'mensal'; // Fallback para 'mensal' se não houver valor
+    const tipoLicenca = licenca.tipo || 'mensal';
     const tipoUsuarioStr = isAdmin ? '👑 (Administrador)' : `👤 (Usuário - ${tipoLicenca.toUpperCase()})`;
     
-    // Obtém o nome e a matrícula relacionados
+    // Obtém os dados do colaborador
     const nomeColab = licenca.colaboradores?.nome ? licenca.colaboradores.nome : 'Cliente';
     const matriculaColab = licenca.colaboradores?.matricula ? licenca.colaboradores.matricula : '';
     const emailColab = licenca.colaboradores?.email ? licenca.colaboradores.email : '';
     
-    // Monta a string no formato esperado pelo app Python ("MATRICULA - NOME")
     const usuarioCompleto = matriculaColab ? `${matriculaColab} - ${nomeColab}` : nomeColab;
     const nomeUsuarioStr = `\n- Nome: ${nomeColab} (${matriculaColab})`;
 
-    // Extrai as preferências salvas na tabela de colaboradores para preenchimento automático no app
     const colab = licenca.colaboradores || {};
     const preferenciasSalvas = {
       supervisor: colab.supervisor || "",
@@ -127,23 +117,26 @@ export default async function handler(req, res) {
       projeto: colab.projeto || ""
     };
 
-    if(!isAdmin)
-    {
-      await dispararWebhook(`🔑 **Acesso ao App Realizado** ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuarioStr}\n- Validade: ${dataValidadeFormatada}`);
+    if (!isAdmin) {
+      const statusWebhook = estaExpirada ? '⚠️ **Tentativa de Acesso (Licença Expirada)**' : '🔑 **Acesso ao App Realizado**';
+      await dispararWebhook(`${statusWebhook} ${tipoUsuarioStr}\n- Licença: \`${chaveFormatada}\`${nomeUsuarioStr}\n- Validade: ${dataValidadeFormatada}`);
     }
 
+    // 3. Retorna sucesso com o status correspondente (ativa ou expirada)
+    // Passando data_expiracao no formato YYYY-MM-DD para o Python ler no 'verificar_licenca_ativa'
     return res.status(200).json({
       autorizado: true,
-      status: 'ativa',
+      status: estaExpirada ? 'expirada' : 'ativa',
       admin: isAdmin, 
-      tipo: tipoLicenca, // Envia o tipo ("teste", "mensal", "anual", etc.) para o Flet
+      tipo: tipoLicenca,
       usuario: usuarioCompleto,
       nome_colaborador: nomeColab,
       matricula_colaborador: matriculaColab,
       email_colaborador: emailColab,
       validade: dataValidadeFormatada,
+      data_expiracao: licenca.data_validade, // Enviado diretamente para a verificação do Flet
       preferencias: preferenciasSalvas,
-      mensagem: 'Acesso autorizado.',
+      mensagem: estaExpirada ? 'Licença expirada. Acesso limitado.' : 'Acesso autorizado.',
     });
 
   } catch (error) {
