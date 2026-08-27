@@ -13,7 +13,7 @@ export default function Payments() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/create-checkout-cupom-with-subscription', {
+      const response = await fetch('/api/create-checkout-coupom-with-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
