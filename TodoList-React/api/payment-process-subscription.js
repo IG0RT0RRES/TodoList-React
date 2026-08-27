@@ -326,33 +326,31 @@ export default async function handler(req, res) {
       let novaDataValidade = new Date(agora);
 
       if (licencaExistente) {
-        isRenovacao = true;
-        chaveUso = licencaExistente.chave;
-        const dataValidadeAtual = new Date(licencaExistente.data_validade);
+  isRenovacao = true;
+  chaveUso = licencaExistente.chave;
+  const dataValidadeAtual = new Date(licencaExistente.data_validade);
 
-        if (dataValidadeAtual.getFullYear() >= 2099) {
-          novaDataValidade = dataValidadeAtual;
-        } else {
-          const dataBase = dataValidadeAtual > agora ? dataValidadeAtual : agora;
-          novaDataValidade = new Date(dataBase);
-          novaDataValidade.setDate(novaDataValidade.getDate() + diasValidade);
-        }
+  if (dataValidadeAtual.getFullYear() >= 2099) {
+    novaDataValidade = dataValidadeAtual;
+  } else {
+    // 🛠️ Se a licença anterior era 'degustacao' ou já expirou, renova contando a partir de AGORA
+    // Se a licença atual é uma mensalidade normal ainda dentro do prazo, acumula +30 dias ao final dela
+    const eraDegustacao = licencaExistente.tipo === 'degustacao';
+    const dataBase = (dataValidadeAtual > agora && !eraDegustacao) ? dataValidadeAtual : agora;
+    
+    novaDataValidade = new Date(dataBase);
+    novaDataValidade.setDate(novaDataValidade.getDate() + diasValidade);
+  }
 
-        const { error: updateError } = await supabase
-          .from('licencas')
-          .update({
-            data_validade: novaDataValidade.toISOString(),
-            status: 'ativa',
-            tipo: tipoLicenca,
-          })
-          .eq('chave', chaveUso);
-
-        if (updateError) {
-          console.error("Erro ao atualizar licença existente:", updateError);
-          throw new Error("Erro ao atualizar licença: " + updateError.message);
-        }
-
-      } else {
+  const { error: updateError } = await supabase
+    .from('licencas')
+    .update({
+      data_validade: novaDataValidade.toISOString(),
+      status: 'ativa',
+      tipo: tipoLicenca, // Atualiza de 'degustacao' para 'mensal'
+    })
+    .eq('chave', chaveUso);
+} else {
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + diasValidade);
 
