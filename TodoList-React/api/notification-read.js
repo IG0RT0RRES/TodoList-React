@@ -19,32 +19,50 @@ export default async function handler(req, res) {
 
   try {
     const { id_notificacao, chave } = req.body || {};
+    const chaveLimpa = chave ? chave.trim() : '';
 
-    if (!id_notificacao) {
-      return res.status(400).json({ error: 'ID da notificação não informado.' });
+    if (!id_notificacao || !chaveLimpa) {
+      return res.status(400).json({ error: 'ID da notificação e Chave são obrigatórios.' });
     }
 
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase não configurado no servidor.');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 2. Desativa no Supabase SOMENTE SE a notificação for direcionada a uma chave específica (não global)
-    const { data, error } = await supabase
+    // 2. Registra o histórico individual na tabela 'notificacoes_lidas'
+    // O 'upsert' evita erro de duplicidade caso o usuário clique mais de uma vez
+    const { error: errLidas } = await supabase
+      .from('notificacoes_lidas')
+      .upsert(
+        { notificacao_id: id_notificacao, chave_usuario: chaveLimpa },
+        { onConflict: 'notificacao_id,chave_usuario' }
+      );
+
+    if (errLidas) throw errLidas;
+
+    // 3. Se for uma notificação individual (chave_alvo NÃO é nula), desativa na tabela principal
+    const { data: desativadas, error: errUpdate } = await supabase
       .from('notificacoes')
       .update({ ativa: false })
       .eq('id', id_notificacao)
-      .not('chave_alvo', 'is', null) // Garante que nunca desativará avisos globais
+      .not('chave_alvo', 'is', null)
       .select();
 
-    if (error) throw error;
+    if (errUpdate) throw errUpdate;
 
     return res.status(200).json({ 
       sucesso: true, 
-      desativada_no_banco: data && data.length > 0 
+      registrado_como_lido: true,
+      desativada_no_banco: desativadas && desativadas.length > 0 
     });
 
   } catch (error) {
-    console.error('❌ Erro ao desativar notificação:', error);
+    console.error('❌ Erro ao processar leitura da notificação:', error);
     return res.status(500).json({ error: error.message });
   }
 }
