@@ -387,8 +387,22 @@ export default async function handler(req, res) {
       }
     }
     
-    // 🎟️ 6. Criação da Checkout Session (Modo Assinatura com Trial Dinâmico)
-    const sessionConfig = {
+    // 🎟️ 6. Criação da Checkout Session (Modo Assinatura com Trial Condicional)
+    const subscriptionData = {
+      metadata: {
+        matricula: matriculaLimpa,
+        nome: nomeCadastrado,
+        whatsapp,
+        email,
+      },
+    };
+
+    // Adiciona o período de testes de 3 dias apenas se o usuário for elegível
+    if (permitirTrial) {
+      subscriptionData.trial_period_days = 3;
+    }
+
+    const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       customer: customerId,
       line_items: [
@@ -408,7 +422,7 @@ export default async function handler(req, res) {
         },
       ],
       mode: 'subscription',
-      allow_promotion_codes: false, // Desativado pois o trial agora é nativo
+      allow_promotion_codes: false,
       success_url: `https://wa.me/5521969254192?text=Assinatura%20realizada%20com%20sucesso!%20Matricula:%20${encodeURIComponent(matriculaLimpa)}`,
       cancel_url: `https://wa.me/5521969254192?text=A%20assinatura%20da%20licenca%20foi%20cancelada.`,
       metadata: {
@@ -417,31 +431,8 @@ export default async function handler(req, res) {
         whatsapp,
         email,
       },
-    };
-
-    // Adiciona o período de testes de 3 dias apenas se o usuário for elegível (sem histórico prévio)
-    if (permitirTrial) {
-      sessionConfig.subscription_data = {
-        trial_period_days: 3,
-        metadata: {
-          matricula: matriculaLimpa,
-          nome: nomeCadastrado,
-          whatsapp,
-          email,
-        },
-      };
-    } else {
-      sessionConfig.subscription_data = {
-        metadata: {
-          matricula: matriculaLimpa,
-          nome: nomeCadastrado,
-          whatsapp,
-          email,
-        },
-      };
-    }
-
-    const session = await stripe.checkout.sessions.create(sessionConfig);
+      subscription_data: subscriptionData,
+    });
 
     return res.status(200).json({
       checkout_url: session.url
