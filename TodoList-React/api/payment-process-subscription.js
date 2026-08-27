@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET_SUBSCRIPTION;
+const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 export const config = {
   api: {
@@ -29,7 +29,7 @@ function gerarChave() {
   return `${letras}${numeros}`;
 }
 
-// 📧 FUNÇÃO DE ENVIO DO EMAILJS COM TEMPLATE DINÂMICO UNIFICADO (COM SUPORTE A FALHA)
+// 📧 FUNÇÃO DE ENVIO DO EMAILJS COM TEMPLATE DINÂMICO UNIFICADO
 async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormatada, tipoStatus) {
   const serviceId = process.env.EMAILJS_SERVICE_ID;
   const templateId = process.env.EMAILJS_TEMPLATE_ID;
@@ -41,7 +41,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
   const emailJsUrl = 'https://api.emailjs.com/api/v1.0/email/send';
 
   let configuracao = {
-    cor_fundo: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+    cor_fundo: 'linear-gradient(135deg, #2563eb, #1d4ed8)', // Azul
     cor_borda: '#3b82f6',
     cor_texto: '#60a5fa',
     titulo_email: 'Acesso Liberado! 🚀',
@@ -52,33 +52,23 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
 
   if (tipoStatus === 'renovacao') {
     configuracao = {
-      cor_fundo: 'linear-gradient(135deg, #059669, #047857)',
+      cor_fundo: 'linear-gradient(135deg, #059669, #047857)', // Verde
       cor_borda: '#10b981',
       cor_texto: '#34d399',
       titulo_email: 'Licença Renovada! 🔄',
-      mensagem_corpo: 'O seu pagamento recorrente foi confirmado e a validade da sua licença foi estendida com sucesso.',
+      mensagem_corpo: 'O seu pagamento foi confirmado e a validade da sua licença foi estendida com sucesso.',
       conteudo_destaque: licenseKey,
       detalhe_rodape: `🗓️ Nova Validade: ${dataValidadeFormatada}`
     };
   } else if (tipoStatus === 'degustacao') {
     configuracao = {
-      cor_fundo: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+      cor_fundo: 'linear-gradient(135deg, #7c3aed, #6d28d9)', // Roxo
       cor_borda: '#8b5cf6',
       cor_texto: '#a78bfa',
       titulo_email: 'Bem-vindo ao Teste Grátis! 🎁',
-      mensagem_corpo: 'Seu cupom de degustação foi ativado com sucesso. Aproveite seus 3 dias de acesso total!',
+      mensagem_corpo: 'Seu cupom de degustação foi ativado com sucesso. Aproveite seus 3 dias de acesso total ao aplicativo!',
       conteudo_destaque: licenseKey,
       detalhe_rodape: `⏱️ Válido até: ${dataValidadeFormatada}`
-    };
-  } else if (tipoStatus === 'falha_pagamento') {
-    configuracao = {
-      cor_fundo: 'linear-gradient(135deg, #dc2626, #b91c1c)', // Vermelho Alerta
-      cor_borda: '#ef4444',
-      cor_texto: '#f87171',
-      titulo_email: 'Falha na Renovação da Assinatura ⚠️',
-      mensagem_corpo: 'Não foi possível processar o pagamento da sua mensalidade. Verifique os dados do seu cartão para evitar a suspensão do acesso.',
-      conteudo_destaque: 'AÇÃO NECESSÁRIA',
-      detalhe_rodape: `❌ O acesso poderá expirar caso o pagamento não seja regularizado.`
     };
   }
 
@@ -112,46 +102,43 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
   }
 }
 
-async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, statusOperacao) {
+async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao, isDegustacao) {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
 
   let titulo = 'Nova Licença Gerada (30 Dias)';
-  let descricao = 'Um novo colaborador realizou uma assinatura.';
-  let cor = 16711680;
+  let descricao = 'Um novo colaborador foi cadastrado e salvo no Supabase.';
+  let cor = 16711680; 
   let conteudoBot = 'Novo pagamento e acesso liberado!';
 
-  if (statusOperacao === 'degustacao') {
+  if (isDegustacao) {
     titulo = '🎁 Licença de Degustação Gerada (3 Dias)';
-    descricao = 'Cupom CAD2026 aplicado!';
-    cor = 3447003;
+    descricao = 'Cupom CAD2026 aplicado! Licença de teste grátis gerada para o colaborador.';
+    cor = 3447003; 
     conteudoBot = '🎁 Novo teste grátis ativado!';
-  } else if (statusOperacao === 'renovacao') {
-    titulo = 'Assinatura Renovada (+30 Dias)';
-    descricao = 'Um pagamento recorrente foi processado e a licença foi estendida.';
-    cor = 3066993;
-    conteudoBot = 'Renovação de assinatura concluída!';
-  } else if (statusOperacao === 'falha_pagamento') {
-    titulo = '⚠️ Falha no Pagamento da Assinatura';
-    descricao = 'Uma tentativa de cobrança recorrente falhou no Stripe.';
-    cor = 15158332; // Vermelho Alerta
-    conteudoBot = '⚠️ Atenção: Falha de pagamento!';
+  } else if (isRenovacao) {
+    titulo = 'Licença Renovada (+30 Dias)';
+    descricao = 'Um pagamento de renovação foi processado e a validade da chave existente foi estendida.';
+    cor = 3066993; 
+    conteudoBot = 'Renovação de licença concluída!';
   }
 
+  const tipoTexto = isDegustacao ? 'Degustação (3 Dias)' : (isRenovacao ? 'Renovação' : 'Novo Colaborador');
+
   const fields = [
-    { name: 'Tipo', value: statusOperacao.toUpperCase(), inline: true },
+    { name: 'Tipo', value: tipoTexto, inline: true },
     { name: 'Colaborador', value: matriculaFormatada || nome, inline: false },
     { name: 'WhatsApp', value: whatsapp || 'Não informado', inline: true },
     { name: 'E-mail', value: customerEmail, inline: true },
-    { name: 'Data', value: dataAquisicao, inline: true },
-    { name: 'Código / Status', value: licenseKey, inline: true },
+    { name: 'Data da Operação', value: dataAquisicao, inline: true },
+    { name: 'Código de Acesso', value: licenseKey, inline: true },
     { name: 'Válido até', value: dataValidade, inline: true },
   ];
 
   const payload = {
-    username: 'Stripe Bot',
+    username: 'Stripe Pix Bot',
     content: conteudoBot,
-    embeds: [{ title: titulo, description: descricao, color: cor, fields: fields }],
+    embeds: [{ title: titulo, description: description, color: cor, fields: fields }],
   };
 
   try {
@@ -182,11 +169,13 @@ export default async function handler(req, res) {
 
     if (endpointSecret) {
       if (!sig) {
+        console.error('❌ Assinatura stripe-signature ausente no cabeçalho.');
         return res.status(400).send('Webhook Error: Stripe signature missing');
       }
       try {
         event = stripe.webhooks.constructEvent(buf, sig, endpointSecret);
       } catch (err) {
+        console.error(`❌ Falha ao validar evento do Stripe: ${err.message}`);
         return res.status(400).send(`Webhook Error: ${err.message}`);
       }
     } else {
@@ -198,93 +187,57 @@ export default async function handler(req, res) {
 
   const eventType = event.type;
 
-  // 🎯 Adicionado 'invoice.payment_failed' para capturar falhas de cobrança recorrente
-  if (
-    eventType === 'checkout.session.completed' || 
-    eventType === 'payment_intent.succeeded' || 
-    eventType === 'invoice.payment_succeeded' ||
-    eventType === 'invoice.payment_failed'
-  ) {
-    const objectData = event.data.object;
+  // 🎯 Agora escutamos o evento de Fatura Bem-Sucedida do Stripe
+  if (eventType === 'invoice.payment_succeeded') {
+    const invoice = event.data.object;
     
-    let metadata = objectData.metadata || {};
+    // Nas assinaturas e faturas do Stripe, os metadados podem vir na subscription ou na invoice
+    const metadata = invoice.metadata || invoice.parent?.subscription_details?.metadata || {};
     
-    if ((eventType === 'invoice.payment_succeeded' || eventType === 'invoice.payment_failed') && objectData.subscription) {
-      try {
-        const subscription = await stripe.subscriptions.retrieve(objectData.subscription);
-        metadata = subscription.metadata || metadata;
-      } catch (e) {
-        console.error('⚠️ Não foi possível buscar metadados da assinatura:', e.message);
-      }
-    }
-
-    const nome = metadata.nome || objectData.customer_name || objectData.customer_details?.name || '';
-    const matricula = metadata.matricula || '';
-
-    let customerEmail = '';
-    if (objectData.customer_email) {
-      customerEmail = objectData.customer_email;
-    } else if (objectData.customer_details?.email) {
-      customerEmail = objectData.customer_details.email;
-    } else if (objectData.receipt_email) {
-      customerEmail = objectData.receipt_email;
-    } else if (metadata.email) {
-      customerEmail = metadata.email;
-    }
-
-    customerEmail = customerEmail ? customerEmail.trim().toLowerCase() : '';
+    // Extrai dados do primeiro item da fatura se houver metadados lá também
+    const lineItemMetadata = invoice.lines?.data?.[0]?.metadata || {};
+    
+    const nome = metadata.nome || lineItemMetadata.nome || invoice.customer_name || '';
+    const matricula = metadata.matricula || lineItemMetadata.matricula || '';
+    
+    let customerEmail = invoice.customer_email || metadata.email || lineItemMetadata.email || '';
+    customerEmail = customerEmail.trim().toLowerCase();
 
     const whatsapp = (
       metadata.whatsapp || 
-      objectData.customer_details?.phone || 
-      objectData.shipping?.phone || 
+      lineItemMetadata.whatsapp || 
+      invoice.customer_shipping?.phone || 
+      invoice.customer_phone || 
       ''
     ).trim();
 
-    // 🛑 TRATAMENTO ESPECÍFICO PARA FALHA DE PAGAMENTO
-    if (eventType === 'invoice.payment_failed') {
-      console.warn(`⚠️ [PAGAMENTO FALHOU] Assinatura/Fatura falhou para: ${customerEmail} (Matrícula: ${matricula})`);
-      
-      const dataAtualStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-      
-      // Opcional: Atualizar status da licença no Supabase para 'inadimplente' ou 'atrasada' se desejar bloquear
-      try {
-        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        if (supabaseUrl && supabaseKey && matricula) {
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          // Opcional: Você pode alterar o status na tabela licencas para 'pendente' ou 'atrasado'
-          await supabase.from('licencas').update({ status: 'pendente' }).eq('whatsapp', whatsapp);
-        }
-      } catch (dbErr) {
-        console.error('Erro ao atualizar status de inadimplência no Supabase:', dbErr);
+    console.log('📦 DADOS DA FATURA DO STRIPE RECEBIDOS:', JSON.stringify({
+      customer_email: customerEmail,
+      nome,
+      matricula,
+      total: invoice.total,
+      discount: invoice.total_discount_amounts,
+      metadata
+    }, null, 2));
+
+    // 🔍 Detecção de Degustação na Fatura (Cupom aplicado ou total de desconto cobrindo o item)
+    const temDescontoFatura = (invoice.total_discount_amounts && invoice.total_discount_amounts.length > 0) || invoice.amount_remaining === 0 && invoice.subtotal > 0;
+    const cupomMetadados = metadata.cupom === 'CAD2026' || lineItemMetadata.cupom === 'CAD2026';
+    
+    let isDegustacao = temDescontoFatura || cupomMetadados;
+
+    // Varre descontos aplicados nos itens da fatura
+    const lineItems = invoice.lines?.data || [];
+    for (const item of lineItems) {
+      if (item.discount_amounts && item.discount_amounts.length > 0) {
+        isDegustacao = true;
+        break;
       }
-
-      // Dispara os alertas de falha (EmailJS + Discord)
-      await Promise.allSettled([
-        enviarEmailJS(customerEmail, nome || 'Cliente', 'FALHA DE PAGAMENTO', dataAtualStr, 'falha_pagamento'),
-        enviarWebhookDiscord(
-          'FALHA_PAGAMENTO',
-          customerEmail || 'Não informado',
-          nome || 'Cliente',
-          matricula ? `${matricula} - ${nome}` : nome,
-          whatsapp,
-          dataAtualStr,
-          'Expirando em breve',
-          'falha_pagamento'
-        )
-      ]);
-
-      return res.status(200).json({ status: 'handled_failure', email: customerEmail });
     }
 
-    // Fluxo normal para pagamentos bem-sucedidos (Checkout, Primeiro Pagamento ou Renovação)
-    const houveDesconto = objectData.total_details?.amount_discount > 0 || objectData.discount;
-    const cupomMetadados = metadata.cupom === 'CAD2026';
-    let isDegustacao = houveDesconto || cupomMetadados;
-
-    const isDadosInvalidos = !customerEmail && !nome && !matricula;
+    const isDadosInvalidos = (!customerEmail || customerEmail === 'cliente desconhecido') && !nome && !matricula;
     if (isDadosInvalidos) {
+      console.warn('⚠️ Webhook ignorado: Fatura do Stripe sem dados identificáveis do cliente.');
       return res.status(200).json({ status: 'ignored', reason: 'Missing customer identification metadata' });
     }
 
@@ -298,6 +251,7 @@ export default async function handler(req, res) {
 
       const supabase = createClient(supabaseUrl, supabaseKey);
 
+      // ⏱️ Se for degustação são 3 dias, caso contrário 30 dias de mensalidade
       let diasValidade = isDegustacao ? 3 : 30;
       const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
 
@@ -317,22 +271,37 @@ export default async function handler(req, res) {
 
         if (colabExistente) {
           colaboradorId = colabExistente.id;
+
           await supabase.from('colaboradores').update({
             nome: (nome || 'Cliente').toUpperCase(),
             email: customerEmail || colabExistente.email,
+            equipe: metadata.equipe || null,
+            projeto: metadata.projeto || null,
+            supervisor: metadata.supervisor || null
           }).eq('id', colaboradorId);
-        } else if (matricula || customerEmail) {
-          const { data: novoColab } = await supabase
+
+        } else {
+          const { data: novoColab, error: colabError } = await supabase
             .from('colaboradores')
             .insert([{
               matricula: matricula ? matricula.trim() : `TEMP_${Date.now()}`,
               nome: (nome || 'Cliente').toUpperCase(),
               email: customerEmail || null,
+              equipe: metadata.equipe || null,
+              projeto: metadata.projeto || null,
+              supervisor: metadata.supervisor || null
             }])
             .select('id')
             .single();
 
-          if (novoColab) colaboradorId = novoColab.id;
+          if (colabError) {
+            console.error("Erro ao salvar colaborador no Supabase:", colabError);
+            throw new Error("Erro ao salvar colaborador: " + colabError.message);
+          }
+
+          if (novoColab) {
+            colaboradorId = novoColab.id;
+          }
         }
       }
 
@@ -349,10 +318,11 @@ export default async function handler(req, res) {
 
       let chaveUso = '';
       let isRenovacao = false;
-
+      
       const agoraStr = new Date();
-      agoraStr.setHours(agoraStr.getHours() - 3);      
+      agoraStr.setHours(agoraStr.getHours() - 3); 
       const agora = new Date(agoraStr);
+      
       let novaDataValidade = new Date(agora);
 
       if (licencaExistente) {
@@ -368,7 +338,7 @@ export default async function handler(req, res) {
           novaDataValidade.setDate(novaDataValidade.getDate() + diasValidade);
         }
 
-        await supabase
+        const { error: updateError } = await supabase
           .from('licencas')
           .update({
             data_validade: novaDataValidade.toISOString(),
@@ -377,11 +347,16 @@ export default async function handler(req, res) {
           })
           .eq('chave', chaveUso);
 
+        if (updateError) {
+          console.error("Erro ao atualizar licença existente:", updateError);
+          throw new Error("Erro ao atualizar licença: " + updateError.message);
+        }
+
       } else {
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + diasValidade);
 
-        await supabase.from('licencas').insert([{
+        const { error: insertLicencaError } = await supabase.from('licencas').insert([{
           colaborador_id: colaboradorId,
           chave: chaveUso,
           data_aquisicao: agora.toISOString(),
@@ -391,6 +366,11 @@ export default async function handler(req, res) {
           whatsapp: whatsapp || null,
           admin: false
         }]);
+
+        if (insertLicencaError) {
+          console.error("Erro ao inserir nova licença:", insertLicencaError);
+          throw new Error("Erro ao criar licença: " + insertLicencaError.message);
+        }
       }
 
       const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -409,7 +389,8 @@ export default async function handler(req, res) {
           whatsapp,
           dataAquisicaoFormatada,
           dataValidadeFormatada,
-          statusEmail
+          isRenovacao,
+          isDegustacao
         )
       ]);
 
