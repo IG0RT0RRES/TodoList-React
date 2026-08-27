@@ -186,12 +186,85 @@ export default async function handler(req, res) {
   }
 
   const eventType = event.type;
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // 🎯 Escutamos o evento de Fatura Bem-Sucedida do Stripe
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Credenciais do Supabase ausentes no servidor.');
+    return res.status(500).json({ status: 'error', detalhe: 'Credenciais do Supabase ausentes' });
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // 🎯 1. TRATAMENTO PARA ASSINATURA EXPIRADA (Cancelamento ou Falha Definitiva de Pagamento)
+  if (eventType === 'customer.subscription.deleted' || eventType === 'customer.subscription.paused') {
+    const subscription = event.data.object;
+    const metadata = subscription.metadata || {};
+    const matricula = metadata.matricula || '';
+
+    console.log(`❌ [ASSINATURA EXPIRADA] Matrícula: ${matricula} (Motivo: ${eventType})`);
+
+    try {
+      if (matricula) {
+        const { data: colab } = await supabase
+          .from('colaboradores')
+          .select('id')
+          .eq('matricula', matricula.trim())
+          .single();
+
+        if (colab) {
+          await supabase
+            .from('licencas')
+            .update({ status: 'expirada' })
+            .eq('colaborador_id', colab.id);
+        }
+      }
+
+      return res.status(200).json({ status: 'success', action: 'subscription_expired_processed' });
+    } catch (err) {
+      console.error('❌ Erro ao atualizar status para expirada no Supabase:', err);
+      return res.status(500).json({ status: 'error', detalhe: err.message });
+    }
+  }
+
+  // 🎯 2. TRATAMENTO PARA FALHAS DE PAGAMENTO EM FATURAS (Ex: Tentativas esgotadas)
+  if (eventType === 'invoice.payment_failed') {
+    const invoice = event.data.object;
+    const metadata = invoice.metadata || invoice.lines?.data?.[0]?.metadata || {};
+    const matricula = metadata.matricula || '';
+
+    // O Stripe dispara invoice.payment_failed em tentativas intermediárias. 
+    // Se quiser expirar apenas quando esgotarem as tentativas (ex: attempt_count >= 3 ou se a assinatura foi marcada para fechar):
+    if (invoice.attempt_count >= 3 || invoice.status === 'uncollectible') {
+      console.log(`❌ [PAGAMENTO FALHOU DEFINITIVAMENTE] Matrícula: ${matricula}`);
+
+      try {
+        if (matricula) {
+          const { data: colab } = await supabase
+            .from('colaboradores')
+            .select('id')
+            .eq('matricula', matricula.trim())
+            .single();
+
+          if (colab) {
+            await supabase
+              .from('licencas')
+              .update({ status: 'expirada' })
+              .eq('colaborador_id', colab.id);
+          }
+        }
+      } catch (err) {
+        console.error('❌ Erro ao expirar licença por falha de pagamento:', err);
+      }
+    }
+
+    return res.status(200).json({ status: 'received', action: 'payment_failed_logged' });
+  }
+
+  // 🎯 3. Escutamos o evento de Fatura Bem-Sucedida do Stripe (Fluxo Normal / Ativação)
   if (eventType === 'invoice.payment_succeeded') {
     const invoice = event.data.object;
     
-    // Metadados que vêm junto da assinatura ou fatura
     const metadata = invoice.metadata || invoice.parent?.subscription_details?.metadata || {};
     const lineItemMetadata = invoice.lines?.data?.[0]?.metadata || {};
     
@@ -218,7 +291,6 @@ export default async function handler(req, res) {
       metadata
     }, null, 2));
 
-    // 🔍 Detecção pura baseada no Trial nativo do Stripe
     const isTrialInvoice = invoice.total === 0 && (invoice.billing_reason === 'subscription_create' || invoice.billing_reason === 'subscription_cycle');
     let isDegustacao = isTrialInvoice;
 
@@ -229,16 +301,6 @@ export default async function handler(req, res) {
     }
 
     try {
-      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error('Credenciais do Supabase ausentes no servidor.');
-      }
-
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
-      // ⏱️ 3 dias se for degustação (trial), 30 dias para mensalidade paga
       let diasValidade = isDegustacao ? 3 : 30;
       const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
 
