@@ -66,7 +66,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
       cor_borda: '#8b5cf6',
       cor_texto: '#a78bfa',
       titulo_email: 'Bem-vindo ao Teste Grátis! 🎁',
-      mensagem_corpo: 'Seu cupom de degustação foi ativado com sucesso. Aproveite seus 3 dias de acesso total ao aplicativo!',
+      mensagem_corpo: 'Seu período de degustação foi ativado com sucesso. Aproveite seus 3 dias de acesso total ao aplicativo!',
       conteudo_destaque: licenseKey,
       detalhe_rodape: `⏱️ Válido até: ${dataValidadeFormatada}`
     };
@@ -113,7 +113,7 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
 
   if (isDegustacao) {
     titulo = '🎁 Licença de Degustação Gerada (3 Dias)';
-    descricao = 'Cupom CAD2026 aplicado! Licença de teste grátis gerada para o colaborador.';
+    descricao = 'Período de teste grátis (trial) ativado para o colaborador.';
     cor = 3447003; 
     conteudoBot = '🎁 Novo teste grátis ativado!';
   } else if (isRenovacao) {
@@ -138,7 +138,7 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
   const payload = {
     username: 'Stripe Pix Bot',
     content: conteudoBot,
-    embeds: [{ title: titulo, description: description, color: cor, fields: fields }],
+    embeds: [{ title: titulo, description: descricao, color: cor, fields: fields }],
   };
 
   try {
@@ -216,15 +216,17 @@ export default async function handler(req, res) {
       nome,
       matricula,
       total: invoice.total,
+      billing_reason: invoice.billing_reason,
       discount: invoice.total_discount_amounts,
       metadata
     }, null, 2));
 
-    // 🔍 Detecção de Degustação na Fatura (Cupom aplicado ou total de desconto cobrindo o item)
-    const temDescontoFatura = (invoice.total_discount_amounts && invoice.total_discount_amounts.length > 0) || invoice.amount_remaining === 0 && invoice.subtotal > 0;
+    // 🔍 Detecção de Degustação na Fatura (Trial nativo do Stripe ou Cupons/Descontos)
+    const isTrialInvoice = invoice.total === 0 && (invoice.billing_reason === 'subscription_create' || invoice.billing_reason === 'subscription_cycle');
+    const temDescontoFatura = (invoice.total_discount_amounts && invoice.total_discount_amounts.length > 0) || (invoice.amount_remaining === 0 && invoice.subtotal > 0);
     const cupomMetadados = metadata.cupom === 'CAD2026' || lineItemMetadata.cupom === 'CAD2026';
     
-    let isDegustacao = temDescontoFatura || cupomMetadados;
+    let isDegustacao = isTrialInvoice || temDescontoFatura || cupomMetadados;
 
     // Varre descontos aplicados nos itens da fatura
     const lineItems = invoice.lines?.data || [];
@@ -326,31 +328,31 @@ export default async function handler(req, res) {
       let novaDataValidade = new Date(agora);
 
       if (licencaExistente) {
-  isRenovacao = true;
-  chaveUso = licencaExistente.chave;
-  const dataValidadeAtual = new Date(licencaExistente.data_validade);
+        isRenovacao = true;
+        chaveUso = licencaExistente.chave;
+        const dataValidadeAtual = new Date(licencaExistente.data_validade);
 
-  if (dataValidadeAtual.getFullYear() >= 2099) {
-    novaDataValidade = dataValidadeAtual;
-  } else {
-    // 🛠️ Se a licença anterior era 'degustacao' ou já expirou, renova contando a partir de AGORA
-    // Se a licença atual é uma mensalidade normal ainda dentro do prazo, acumula +30 dias ao final dela
-    const eraDegustacao = licencaExistente.tipo === 'degustacao';
-    const dataBase = (dataValidadeAtual > agora && !eraDegustacao) ? dataValidadeAtual : agora;
-    
-    novaDataValidade = new Date(dataBase);
-    novaDataValidade.setDate(novaDataValidade.getDate() + diasValidade);
-  }
+        if (dataValidadeAtual.getFullYear() >= 2099) {
+          novaDataValidade = dataValidadeAtual;
+        } else {
+          // 🛠️ Se a licença anterior era 'degustacao' ou já expirou, renova contando a partir de AGORA
+          // Se a licença atual é uma mensalidade normal ainda dentro do prazo, acumula +30 dias ao final dela
+          const eraDegustacao = licencaExistente.tipo === 'degustacao';
+          const dataBase = (dataValidadeAtual > agora && !eraDegustacao) ? dataValidadeAtual : agora;
+          
+          novaDataValidade = new Date(dataBase);
+          novaDataValidade.setDate(novaDataValidade.getDate() + diasValidade);
+        }
 
-  const { error: updateError } = await supabase
-    .from('licencas')
-    .update({
-      data_validade: novaDataValidade.toISOString(),
-      status: 'ativa',
-      tipo: tipoLicenca, // Atualiza de 'degustacao' para 'mensal'
-    })
-    .eq('chave', chaveUso);
-} else {
+        const { error: updateError } = await supabase
+          .from('licencas')
+          .update({
+            data_validade: novaDataValidade.toISOString(),
+            status: 'ativa',
+            tipo: tipoLicenca, 
+          })
+          .eq('chave', chaveUso);
+      } else {
         chaveUso = gerarChave();
         novaDataValidade.setDate(agora.getDate() + diasValidade);
 
