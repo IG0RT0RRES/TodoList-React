@@ -187,14 +187,12 @@ export default async function handler(req, res) {
 
   const eventType = event.type;
 
-  // 🎯 Agora escutamos o evento de Fatura Bem-Sucedida do Stripe
+  // 🎯 Escutamos o evento de Fatura Bem-Sucedida do Stripe
   if (eventType === 'invoice.payment_succeeded') {
     const invoice = event.data.object;
     
-    // Nas assinaturas e faturas do Stripe, os metadados podem vir na subscription ou na invoice
+    // Metadados que vêm junto da assinatura ou fatura
     const metadata = invoice.metadata || invoice.parent?.subscription_details?.metadata || {};
-    
-    // Extrai dados do primeiro item da fatura se houver metadados lá também
     const lineItemMetadata = invoice.lines?.data?.[0]?.metadata || {};
     
     const nome = metadata.nome || lineItemMetadata.nome || invoice.customer_name || '';
@@ -217,25 +215,12 @@ export default async function handler(req, res) {
       matricula,
       total: invoice.total,
       billing_reason: invoice.billing_reason,
-      discount: invoice.total_discount_amounts,
       metadata
     }, null, 2));
 
-    // 🔍 Detecção de Degustação na Fatura (Trial nativo do Stripe ou Cupons/Descontos)
+    // 🔍 Detecção pura baseada no Trial nativo do Stripe
     const isTrialInvoice = invoice.total === 0 && (invoice.billing_reason === 'subscription_create' || invoice.billing_reason === 'subscription_cycle');
-    const temDescontoFatura = (invoice.total_discount_amounts && invoice.total_discount_amounts.length > 0) || (invoice.amount_remaining === 0 && invoice.subtotal > 0);
-    const cupomMetadados = metadata.cupom === 'CAD2026' || lineItemMetadata.cupom === 'CAD2026';
-    
-    let isDegustacao = isTrialInvoice || temDescontoFatura || cupomMetadados;
-
-    // Varre descontos aplicados nos itens da fatura
-    const lineItems = invoice.lines?.data || [];
-    for (const item of lineItems) {
-      if (item.discount_amounts && item.discount_amounts.length > 0) {
-        isDegustacao = true;
-        break;
-      }
-    }
+    let isDegustacao = isTrialInvoice;
 
     const isDadosInvalidos = (!customerEmail || customerEmail === 'cliente desconhecido') && !nome && !matricula;
     if (isDadosInvalidos) {
@@ -253,7 +238,7 @@ export default async function handler(req, res) {
 
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // ⏱️ Se for degustação são 3 dias, caso contrário 30 dias de mensalidade
+      // ⏱️ 3 dias se for degustação (trial), 30 dias para mensalidade paga
       let diasValidade = isDegustacao ? 3 : 30;
       const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
 
@@ -335,8 +320,6 @@ export default async function handler(req, res) {
         if (dataValidadeAtual.getFullYear() >= 2099) {
           novaDataValidade = dataValidadeAtual;
         } else {
-          // 🛠️ Se a licença anterior era 'degustacao' ou já expirou, renova contando a partir de AGORA
-          // Se a licença atual é uma mensalidade normal ainda dentro do prazo, acumula +30 dias ao final dela
           const eraDegustacao = licencaExistente.tipo === 'degustacao';
           const dataBase = (dataValidadeAtual > agora && !eraDegustacao) ? dataValidadeAtual : agora;
           
