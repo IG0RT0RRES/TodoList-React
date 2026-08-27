@@ -420,6 +420,7 @@ export default async function handler(req, res) {
         cupom: permitirCupom ? (cupom || 'nenhum') : 'bloqueado_reuso',
       },
       subscription_data: {
+        trial_period_days: 3,
         metadata: {
           matricula: matriculaLimpa,
           nome: nomeCadastrado,
