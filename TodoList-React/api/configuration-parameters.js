@@ -17,18 +17,18 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // --- NOVO: Atualiza automaticamente licenças vencidas para 'expirada' ---
+    // --- ATUALIZAÇÃO AUTOMÁTICA DE LICENÇAS VENCIDAS ---
     const dataAtualIso = new Date().toISOString();
     const { error: errUpdateLic } = await supabase
       .from('licencas')
       .update({ status: 'expirada' })
       .eq('status', 'ativa')
-      .lt('validade', dataAtualIso);
+      .lt('data_validade', dataAtualIso);
 
     if (errUpdateLic) {
       console.warn(`Aviso ao atualizar licenças vencidas: ${errUpdateLic.message}`);
     }
-    // ---------------------------------------------------------------------
+    // ---------------------------------------------------
 
     // 1. Busca as configurações globais do app (versão, manutenção, etc.)
     const { data: configApp, error: errConfig } = await supabase
