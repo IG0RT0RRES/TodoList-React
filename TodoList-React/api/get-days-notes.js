@@ -9,14 +9,6 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
-  // 1. Validar a Chave Secreta enviada pelo App no Header
-  const appToken = req.headers['x-app-token'];
-  const tokenSecretoServidor = process.env.APP_SECRET_TOKEN;
-
-  if (!appToken || appToken !== tokenSecretoServidor) {
-    return res.status(403).json({ error: 'Acesso negado. Requisição não autorizada.' });
-  }
-
   try {
     const { usuario, dia } = req.body || {};
     
@@ -36,7 +28,7 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 2. Consulta as notas no Supabase filtrando estritamente pelo usuário e data de referência
+    // Consulta as notas no Supabase filtrando estritamente pelo usuário e data de referência
     const { data, error } = await supabase
       .from('notas_servico')
       .select('*')
@@ -46,7 +38,7 @@ export default async function handler(req, res) {
 
     if (error) throw error;
 
-    // 3. Retorna a lista de notas para o aplicativo Flet
+    // Retorna a lista de notas para o aplicativo Flet
     return res.status(200).json({
       sucesso: true,
       total: data ? data.length : 0,
