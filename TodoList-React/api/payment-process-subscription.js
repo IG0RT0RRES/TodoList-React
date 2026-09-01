@@ -233,8 +233,6 @@ export default async function handler(req, res) {
     const metadata = invoice.metadata || invoice.lines?.data?.[0]?.metadata || {};
     const matricula = metadata.matricula || '';
 
-    // O Stripe dispara invoice.payment_failed em tentativas intermediárias. 
-    // Se quiser expirar apenas quando esgotarem as tentativas (ex: attempt_count >= 3 ou se a assinatura foi marcada para fechar):
     if (invoice.attempt_count >= 3 || invoice.status === 'uncollectible') {
       console.log(`❌ [PAGAMENTO FALHOU DEFINITIVAMENTE] Matrícula: ${matricula}`);
 
@@ -264,13 +262,13 @@ export default async function handler(req, res) {
   // 🎯 3. Escutamos o evento de Fatura Bem-Sucedida do Stripe (Fluxo Normal / Ativação)
   if (eventType === 'invoice.payment_succeeded') {
     const invoice = event.data.object;
-    
+
     const metadata = invoice.metadata || invoice.parent?.subscription_details?.metadata || {};
     const lineItemMetadata = invoice.lines?.data?.[0]?.metadata || {};
-    
+
     const nome = metadata.nome || lineItemMetadata.nome || invoice.customer_name || '';
     const matricula = metadata.matricula || lineItemMetadata.matricula || '';
-    
+
     let customerEmail = invoice.customer_email || metadata.email || lineItemMetadata.email || '';
     customerEmail = customerEmail.trim().toLowerCase();
 
@@ -319,17 +317,10 @@ export default async function handler(req, res) {
         const colabExistente = colabsEncontrados && colabsEncontrados.length > 0 ? colabsEncontrados[0] : null;
 
         if (colabExistente) {
+          // Colaborador já existe: apenas reutilizamos o ID, preservando os dados alterados pelo app
           colaboradorId = colabExistente.id;
-
-          await supabase.from('colaboradores').update({
-            nome: (nome || 'Cliente').toUpperCase(),
-            email: customerEmail || colabExistente.email,
-            equipe: metadata.equipe || null,
-            projeto: metadata.projeto || null,
-            supervisor: metadata.supervisor || null
-          }).eq('id', colaboradorId);
-
         } else {
+          // Colaborador não existe: inserimos os dados iniciais pela primeira vez
           const { data: novoColab, error: colabError } = await supabase
             .from('colaboradores')
             .insert([{
@@ -367,11 +358,11 @@ export default async function handler(req, res) {
 
       let chaveUso = '';
       let isRenovacao = false;
-      
+
       const agoraStr = new Date();
       agoraStr.setHours(agoraStr.getHours() - 3); 
       const agora = new Date(agoraStr);
-      
+
       let novaDataValidade = new Date(agora);
 
       if (licencaExistente) {
@@ -384,7 +375,7 @@ export default async function handler(req, res) {
         } else {
           const eraDegustacao = licencaExistente.tipo === 'degustacao';
           const dataBase = (dataValidadeAtual > agora && !eraDegustacao) ? dataValidadeAtual : agora;
-          
+
           novaDataValidade = new Date(dataBase);
           novaDataValidade.setDate(novaDataValidade.getDate() + diasValidade);
         }
