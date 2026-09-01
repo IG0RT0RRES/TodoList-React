@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   try {
     const { usuario, dia } = req.body || {};
-    
+
     if (!usuario || !dia) {
       return res.status(400).json({ error: 'Parâmetros "usuario" e "dia" são obrigatórios.' });
     }
@@ -39,21 +39,21 @@ export default async function handler(req, res) {
         const dataLimite = new Date(dataReferenciaObj);
         dataLimite.setDate(dataLimite.getDate() - 4);
 
-        // Formata a data limite para DD/MM/YYYY para comparar com o formato salvo no banco
+        // Formata a data limite para o padrão ISO (YYYY-MM-DD) para que o banco consiga comparar corretamente em formato textual
         const diaL = String(dataLimite.getDate()).padStart(2, '0');
         const mesL = String(dataLimite.getMonth() + 1).padStart(2, '0');
         const anoL = dataLimite.getFullYear();
-        const dataLimiteStr = `${diaL}/${mesL}/${anoL}`;
+        const dataLimiteStr = `${anoL}-${mesL}-${diaL}`;
 
-        // Como o banco usa formato textual DD/MM/YYYY, fazemos a exclusão das datas estritamente anteriores ao limite
-        // Nota: Para segurança e limpeza em lote, removemos do mesmo usuário tudo o que for menor que o limite de 4 dias.
-        // Se a sua base tiver datas em formato ISO ou comparável por string, ajuste conforme necessário, 
-        // mas aqui tratamos com o formato padrão salvo pela aplicação.
+        // Como o banco armazena em DD/MM/YYYY (texto), uma comparação estritamente alfanumérica falha.
+        // A melhor abordagem prática mantendo o campo texto é converter a string do banco no formato YYYY-MM-DD via SQL (substring/concat) 
+        // ou alterar o campo no Supabase para o tipo DATE. 
+        // Abaixo ajustamos a query para comparar invertendo o formato DD/MM/YYYY para YYYY-MM-DD em tempo de execução no Postgres:
         await supabase
           .from('notas_servico')
           .delete()
           .eq('usuario', usuarioLimpo)
-          .lt('data_referencia', dataLimiteStr);
+          .lt("concat(substring(data_referencia, 7, 4), '-', substring(data_referencia, 4, 2), '-', substring(data_referencia, 1, 2))", dataLimiteStr);
       }
     } catch (cleanError) {
       console.error('⚠️ Aviso ao tentar limpar notas antigas:', cleanError);
