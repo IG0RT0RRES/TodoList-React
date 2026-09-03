@@ -63,7 +63,7 @@ export default async function handler(req, res) {
 
     // 2. REGRA DO DISCORD: Se a nota for <= 3, dispara o alerta crítico no Discord
     if (notaUsuario <= 3) {
-      const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+      const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
       
       if (webhookUrl) {
         // Montando as estrelas visualmente para o embed
