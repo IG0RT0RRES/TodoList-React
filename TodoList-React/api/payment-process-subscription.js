@@ -41,7 +41,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
   const emailJsUrl = 'https://api.emailjs.com/api/v1.0/email/send';
 
   let configuracao = {
-    cor_fundo: 'linear-gradient(135deg, #2563eb, #1d4ed8)', // Azul
+    cor_fundo: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
     cor_borda: '#3b82f6',
     cor_texto: '#60a5fa',
     titulo_email: 'Acesso Liberado! 🚀',
@@ -52,7 +52,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
 
   if (tipoStatus === 'renovacao') {
     configuracao = {
-      cor_fundo: 'linear-gradient(135deg, #059669, #047857)', // Verde
+      cor_fundo: 'linear-gradient(135deg, #059669, #047857)',
       cor_borda: '#10b981',
       cor_texto: '#34d399',
       titulo_email: 'Licença Renovada! 🔄',
@@ -62,7 +62,7 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
     };
   } else if (tipoStatus === 'degustacao') {
     configuracao = {
-      cor_fundo: 'linear-gradient(135deg, #7c3aed, #6d28d9)', // Roxo
+      cor_fundo: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
       cor_borda: '#8b5cf6',
       cor_texto: '#a78bfa',
       titulo_email: 'Bem-vindo ao Teste Grátis! 🎁',
@@ -196,7 +196,7 @@ export default async function handler(req, res) {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // 🎯 1. TRATAMENTO PARA ASSINATURA EXPIRADA (Cancelamento ou Falha Definitiva de Pagamento)
+  // 🎯 1. TRATAMENTO PARA ASSINATURA EXPIRADA
   if (eventType === 'customer.subscription.deleted' || eventType === 'customer.subscription.paused') {
     const subscription = event.data.object;
     const metadata = subscription.metadata || {};
@@ -227,7 +227,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // 🎯 2. TRATAMENTO PARA FALHAS DE PAGAMENTO EM FATURAS (Ex: Tentativas esgotadas)
+  // 🎯 2. TRATAMENTO PARA FALHAS DE PAGAMENTO EM FATURAS
   if (eventType === 'invoice.payment_failed') {
     const invoice = event.data.object;
     const metadata = invoice.metadata || invoice.lines?.data?.[0]?.metadata || {};
@@ -259,15 +259,25 @@ export default async function handler(req, res) {
     return res.status(200).json({ status: 'received', action: 'payment_failed_logged' });
   }
 
-  // 🎯 3. Escutamos o evento de Fatura Bem-Sucedida do Stripe (Fluxo Normal / Ativação)
+  // 🎯 3. FATURA BEM-SUCEDIDA (Ativação / Renovação)
   if (eventType === 'invoice.payment_succeeded') {
     const invoice = event.data.object;
 
-    const metadata = invoice.metadata || invoice.parent?.subscription_details?.metadata || {};
+    let subscriptionMetadata = {};
+    if (invoice.subscription) {
+      try {
+        const subObj = await stripe.subscriptions.retrieve(invoice.subscription);
+        subscriptionMetadata = subObj.metadata || {};
+      } catch (e) {
+        console.warn('⚠️ Não foi possível buscar metadados da assinatura diretamente do Stripe:', e.message);
+      }
+    }
+
+    const metadata = { ...invoice.metadata, ...subscriptionMetadata };
     const lineItemMetadata = invoice.lines?.data?.[0]?.metadata || {};
 
     const nome = metadata.nome || lineItemMetadata.nome || invoice.customer_name || '';
-    const matricula = metadata.matricula || lineItemMetadata.matricula || '';
+    const matricula = (metadata.matricula || lineItemMetadata.matricula || '').trim();
 
     let customerEmail = invoice.customer_email || metadata.email || lineItemMetadata.email || '';
     customerEmail = customerEmail.trim().toLowerCase();
@@ -292,7 +302,7 @@ export default async function handler(req, res) {
     const isTrialInvoice = invoice.total === 0 && (invoice.billing_reason === 'subscription_create' || invoice.billing_reason === 'subscription_cycle');
     let isDegustacao = isTrialInvoice;
 
-    const isDadosInvalidos = (!customerEmail || customerEmail === 'cliente desconhecido') && !nome && !matricula;
+    const isDadosInvalidos = !matricula && (!customerEmail || customerEmail === 'cliente desconhecido') && !nome;
     if (isDadosInvalidos) {
       console.warn('⚠️ Webhook ignorado: Fatura do Stripe sem dados identificáveis do cliente.');
       return res.status(200).json({ status: 'ignored', reason: 'Missing customer identification metadata' });
@@ -300,60 +310,68 @@ export default async function handler(req, res) {
 
     try {
       let diasValidade = isDegustacao ? 3 : 30;
-      const tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
+      let tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
 
       let colaboradorId = null;
 
-      if (matricula || customerEmail) {
-        const filtros = [];
-        if (matricula) filtros.push(`matricula.eq.${matricula.trim()}`);
-        if (customerEmail) filtros.push(`email.eq.${customerEmail}`);
-
-        const { data: colabsEncontrados } = await supabase
+      // 🔍 BUSCA POR MATRÍCULA OU E-MAIL
+      if (matricula) {
+        const { data: colabPorMatricula } = await supabase
           .from('colaboradores')
-          .select('id, matricula, email')
-          .or(filtros.join(','));
+          .select('id, email')
+          .eq('matricula', matricula)
+          .maybeSingle();
 
-        const colabExistente = colabsEncontrados && colabsEncontrados.length > 0 ? colabsEncontrados[0] : null;
+        if (colabPorMatricula) {
+          colaboradorId = colabPorMatricula.id;
 
-        if (colabExistente) {
-          // Colaborador já existe: apenas reutilizamos o ID, preservando os dados alterados pelo app
-          colaboradorId = colabExistente.id;
-        } else {
-          // Colaborador não existe: inserimos os dados iniciais pela primeira vez
-          const { data: novoColab, error: colabError } = await supabase
-            .from('colaboradores')
-            .insert([{
-              matricula: matricula ? matricula.trim() : `TEMP_${Date.now()}`,
-              nome: (nome || 'Cliente').toUpperCase(),
-              email: customerEmail || null,
-              equipe: metadata.equipe || null,
-              projeto: metadata.projeto || null,
-              supervisor: metadata.supervisor || null
-            }])
-            .select('id')
-            .single();
-
-          if (colabError) {
-            console.error("Erro ao salvar colaborador no Supabase:", colabError);
-            throw new Error("Erro ao salvar colaborador: " + colabError.message);
-          }
-
-          if (novoColab) {
-            colaboradorId = novoColab.id;
+          if (customerEmail && colabPorMatricula.email !== customerEmail) {
+            console.log(`🔄 Atualizando e-mail do colaborador ${matricula} de "${colabPorMatricula.email}" para "${customerEmail}"`);
+            await supabase
+              .from('colaboradores')
+              .update({ email: customerEmail })
+              .eq('id', colaboradorId);
           }
         }
       }
 
-      let queryLicenca = supabase.from('licencas').select('*, colaboradores(matricula, nome)');
+      if (!colaboradorId && customerEmail) {
+        const { data: colabPorEmail } = await supabase
+          .from('colaboradores')
+          .select('id, matricula')
+          .eq('email', customerEmail)
+          .maybeSingle();
 
-      if (colaboradorId) {
-        queryLicenca = queryLicenca.eq('colaborador_id', colaboradorId);
-      } else if (whatsapp) {
-        queryLicenca = queryLicenca.eq('whatsapp', whatsapp);
+        if (colabPorEmail) {
+          colaboradorId = colabPorEmail.id;
+        }
       }
 
-      const { data: licencasEncontradas } = await queryLicenca;
+      if (!colaboradorId) {
+        const { data: novoColab, error: colabError } = await supabase
+          .from('colaboradores')
+          .insert([{
+            matricula: matricula ? matricula : `TEMP_${Date.now()}`,
+            nome: (nome || 'Cliente').toUpperCase(),
+            email: customerEmail || null,
+            equipe: metadata.equipe || null,
+            projeto: metadata.projeto || null,
+            supervisor: metadata.supervisor || null
+          }]).select('id').single();
+
+        if (colabError) {
+          console.error("Erro ao salvar colaborador no Supabase:", colabError);
+          throw new Error("Erro ao salvar colaborador: " + colabError.message);
+        }
+
+        colaboradorId = novoColab.id;
+      }
+
+      const { data: licencasEncontradas } = await supabase
+        .from('licencas')
+        .select('*, colaboradores(matricula, nome)')
+        .eq('colaborador_id', colaboradorId);
+
       const licencaExistente = licencasEncontradas && licencasEncontradas.length > 0 ? licencasEncontradas[0] : null;
 
       let chaveUso = '';
@@ -388,8 +406,32 @@ export default async function handler(req, res) {
             tipo: tipoLicenca, 
           })
           .eq('chave', chaveUso);
+
+        if (updateError) throw updateError;
       } else {
-        chaveUso = gerarChave();
+        // 🛡️ GARANTIA DE CHAVE ÚNICA NO BANCO
+        let chaveUnica = false;
+        let tentativas = 0;
+
+        while (!chaveUnica && tentativas < 5) {
+          tentativas++;
+          chaveUso = gerarChave();
+
+          const { data: chaveExistente } = await supabase
+            .from('licencas')
+            .select('chave')
+            .eq('chave', chaveUso)
+            .maybeSingle();
+
+          if (!chaveExistente) {
+            chaveUnica = true;
+          }
+        }
+
+        if (!chaveUnica) {
+          throw new Error('Não foi possível gerar uma chave de licença única após várias tentativas.');
+        }
+
         novaDataValidade.setDate(agora.getDate() + diasValidade);
 
         const { error: insertLicencaError } = await supabase.from('licencas').insert([{
