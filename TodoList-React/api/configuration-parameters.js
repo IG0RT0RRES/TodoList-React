@@ -17,18 +17,31 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // --- ATUALIZAÇÃO AUTOMÁTICA DE LICENÇAS VENCIDAS ---
+    // --- ATUALIZAÇÃO AUTOMÁTICA DE LICENÇAS (VENCIMENTO E REATIVAÇÃO) ---
     const dataAtualIso = new Date().toISOString();
-    const { error: errUpdateLic } = await supabase
+
+    // 1. Se passou da validade mas ainda consta como 'ativa', muda para 'expirada'
+    const { error: errUpdateExpirar } = await supabase
       .from('licencas')
       .update({ status: 'expirada' })
       .eq('status', 'ativa')
       .lt('data_validade', dataAtualIso);
 
-    if (errUpdateLic) {
-      console.warn(`Aviso ao atualizar licenças vencidas: ${errUpdateLic.message}`);
+    if (errUpdateExpirar) {
+      console.warn(`Aviso ao expirar licenças vencidas: ${errUpdateExpirar.message}`);
     }
-    // ---------------------------------------------------
+
+    // 2. Se a data foi estendida (maior ou igual a agora) mas ainda consta como 'expirada', reativa para 'ativa'
+    const { error: errUpdateReativar } = await supabase
+      .from('licencas')
+      .update({ status: 'ativa' })
+      .eq('status', 'expirada')
+      .gte('data_validade', dataAtualIso);
+
+    if (errUpdateReativar) {
+      console.warn(`Aviso ao reativar licenças renovadas: ${errUpdateReativar.message}`);
+    }
+    // -------------------------------------------------------------------
 
     // 1. Busca as configurações globais do app (versão, manutenção, etc.)
     const { data: configApp, error: errConfig } = await supabase
