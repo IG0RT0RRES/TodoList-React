@@ -42,8 +42,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ sucesso: true, mensagem: 'Registros salvos com sucesso.' });
     }
 
-    // 2. Buscar Notas Recentes (para evitar duplicidade nos últimos 3 dias)
+    // 2. Buscar Notas Recentes (filtradas por usuário para evitar duplicidade nos últimos 3 dias)
     if (acao === 'obter_recentes') {
+      const { usuario } = payload || {};
+      if (!usuario) {
+        return res.status(400).json({ error: 'Usuário não informado no payload.' });
+      }
+
       const limiteData = new Date();
       limiteData.setDate(limiteData.getDate() - 3);
       const limiteDataStr = limiteData.toISOString().split('T')[0];
@@ -51,6 +56,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from('historico_execucoes')
         .select('nota')
+        .eq('usuario', usuario)
         .eq('tipo', 'sucesso')
         .gte('data_iso', limiteDataStr);
 
@@ -60,13 +66,18 @@ export default async function handler(req, res) {
       return res.status(200).json({ sucesso: true, notas: [...new Set(notasRecentes)] });
     }
 
-    // 3. Carregar Histórico ou Erros formatados para a UI
+    // 3. Carregar Histórico ou Erros formatados para a UI (filtrado por usuário)
     if (acao === 'carregar_dados') {
-      const { tipo } = payload; // 'sucesso' ou 'erro'
+      const { tipo, usuario } = payload; // 'sucesso' ou 'erro', e a chave do usuário
+      
+      if (!usuario) {
+        return res.status(400).json({ error: 'Usuário não informado no payload.' });
+      }
       
       const { data, error } = await supabase
         .from('historico_execucoes')
         .select('*')
+        .eq('usuario', usuario)
         .eq('tipo', tipo)
         .order('data_iso', { ascending: false });
 
@@ -75,15 +86,19 @@ export default async function handler(req, res) {
       return res.status(200).json({ sucesso: true, dados: data || [] });
     }
 
-    // 4. Atualizar/Deletar Erros após Reenvio (Utilizando Nota e Instalação para precisão)
+    // 4. Atualizar/Deletar Erros após Reenvio (Utilizando Usuário, Nota e Instalação para precisão)
     if (acao === 'atualizar_apos_reenvio') {
-      const { dia_proc_iso, data_ref_iso, itens_sucesso } = payload;
+      const { dia_proc_iso, data_ref_iso, itens_sucesso, usuario } = payload;
       
+      if (!usuario) {
+        return res.status(400).json({ error: 'Usuário não informado no payload.' });
+      }
+
       if (!itens_sucesso || itens_sucesso.length === 0) {
         return res.status(200).json({ sucesso: true });
       }
 
-      // Deleta individualmente ou em lote os erros específicos que foram reenviados com sucesso
+      // Deleta individualmente ou em lote os erros específicos do usuário que foram reenviados com sucesso
       for (const item of itens_sucesso) {
         const nota = String(item.nota || '').trim();
         const instalacao = String(item.instalacao || '').trim();
@@ -91,6 +106,7 @@ export default async function handler(req, res) {
         let query = supabase
           .from('historico_execucoes')
           .delete()
+          .eq('usuario', usuario)
           .eq('tipo', 'erro')
           .eq('data_iso', dia_proc_iso)
           .eq('data_referencia', data_ref_iso)
