@@ -63,6 +63,7 @@ export default async function handler(req, res) {
         data_validade,
         admin,
         tipo,
+        whatsapp,
         colaboradores (
           id,
           nome,
@@ -105,6 +106,7 @@ export default async function handler(req, res) {
     const nomeColab = licenca.colaboradores?.nome ? licenca.colaboradores.nome : 'Cliente';
     const matriculaColab = licenca.colaboradores?.matricula ? licenca.colaboradores.matricula : '';
     const emailColab = licenca.colaboradores?.email ? licenca.colaboradores.email : '';
+    const whatsappColab = licenca.whatsapp ? licenca.whatsapp : ''; // Puxado direto da tabela licencas
     
     const usuarioCompleto = matriculaColab ? `${matriculaColab} - ${nomeColab}` : nomeColab;
     const nomeUsuarioStr = `\n- Nome: ${nomeColab} (${matriculaColab})`;
@@ -133,6 +135,7 @@ export default async function handler(req, res) {
       nome_colaborador: nomeColab,
       matricula_colaborador: matriculaColab,
       email_colaborador: emailColab,
+      whatsapp_colaborador: whatsappColab,
       validade: dataValidadeFormatada,
       data_expiracao: licenca.data_validade, // Enviado diretamente para a verificação do Flet
       preferencias: preferenciasSalvas,
