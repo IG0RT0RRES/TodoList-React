@@ -43,7 +43,7 @@ export default async function handler(req, res) {
 
       if (!isNaN(dataReferenciaObj.getTime())) {
         const dataLimite = new Date(dataReferenciaObj);
-        dataLimite.setDate(dataLimite.getDate() - 4);
+        dataLimite.setDate(dataLimite.getDate() - 3);
 
         // Formata a data limite para o padrão ISO (YYYY-MM-DD) que o tipo DATE do Postgres exige
         const anoL = dataLimite.getFullYear();
