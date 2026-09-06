@@ -75,23 +75,34 @@ export default async function handler(req, res) {
       return res.status(200).json({ sucesso: true, dados: data || [] });
     }
 
-    // 4. Atualizar/Deletar Erros após Reenvio
+    // 4. Atualizar/Deletar Erros após Reenvio (Utilizando Nota e Instalação para precisão)
     if (acao === 'atualizar_apos_reenvio') {
-      const { dia_proc_iso, data_ref_iso, notas_sucesso } = payload;
+      const { dia_proc_iso, data_ref_iso, itens_sucesso } = payload;
       
-      if (!notas_sucesso || notas_sucesso.length === 0) {
+      if (!itens_sucesso || itens_sucesso.length === 0) {
         return res.status(200).json({ sucesso: true });
       }
 
-      const { error } = await supabase
-        .from('historico_execucoes')
-        .delete()
-        .eq('tipo', 'erro')
-        .eq('data_iso', dia_proc_iso)
-        .eq('data_referencia', data_ref_iso)
-        .in('nota', notas_sucesso);
+      // Deleta individualmente ou em lote os erros específicos que foram reenviados com sucesso
+      for (const item of itens_sucesso) {
+        const nota = String(item.nota || '').trim();
+        const instalacao = String(item.instalacao || '').trim();
 
-      if (error) throw error;
+        let query = supabase
+          .from('historico_execucoes')
+          .delete()
+          .eq('tipo', 'erro')
+          .eq('data_iso', dia_proc_iso)
+          .eq('data_referencia', data_ref_iso)
+          .eq('nota', nota);
+
+        if (instalacao) {
+          query = query.eq('instalacao', instalacao);
+        }
+
+        const { error } = await query;
+        if (error) throw error;
+      }
 
       return res.status(200).json({ sucesso: true, mensagem: 'Erros limpos após reenvio.' });
     }
