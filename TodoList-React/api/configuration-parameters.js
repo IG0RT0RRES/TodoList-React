@@ -34,6 +34,7 @@ export default async function handler(req, res) {
       }
 
       dadosExternos = await respostaExterna.json();
+      console.warn(f'DADOS LEADERBOARD: {dadosExternos}')
     } catch (errExterno) {
       console.warn(`Aviso ao buscar dados do projeto externo: ${errExterno.message}`);
       // Decida se quer seguir a execução com um valor padrão ou propagar o erro
