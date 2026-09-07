@@ -15,18 +15,17 @@ export default async function handler(req, res) {
       throw new Error('Variáveis de ambiente SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configuradas na Vercel.');
     }
 
-// --- CHAMADA AO ENDENDPOINT EXTERNO ---
+    // --- CHAMADA AO ENDPOINT EXTERNO ---
     let dadosExternos = null;
     try {
       const urlEndpointExterno = 'https://tarkhiz-studios-site.vercel.app/api/leaderboard';
-      
+
       const respostaExterna = await fetch(urlEndpointExterno, {
-        method: 'GET', // ou 'POST', dependendo de como o outro projeto espera
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           // 'Authorization': `Bearer ${process.env.TOKEN_EXTERNO}` // Descomente se precisar de autenticação
         },
-        // body: JSON.stringify({ ... }) // Use caso seja um POST enviando dados
       });
 
       if (!respostaExterna.ok) {
@@ -34,13 +33,11 @@ export default async function handler(req, res) {
       }
 
       dadosExternos = await respostaExterna.json();
-      console.warn(f'DADOS LEADERBOARD: {dadosExternos}')
+      console.log(`DADOS LEADERBOARD:`, dadosExternos);
     } catch (errExterno) {
       console.warn(`Aviso ao buscar dados do projeto externo: ${errExterno.message}`);
-      // Decida se quer seguir a execução com um valor padrão ou propagar o erro
     }
     // ---------------------------------------
-
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -121,7 +118,7 @@ export default async function handler(req, res) {
       return item.matricula ? `${item.matricula} - ${nomeUpper}` : nomeUpper;
     });
 
-    // Retorna a resposta completa incluindo o modo de manutenção
+    // Retorna a resposta completa incluindo os dados externos e de manutenção
     return res.status(200).json({
       supervisores,
       colaboradores,
@@ -130,7 +127,8 @@ export default async function handler(req, res) {
       versao_minima,
       url_loja,
       modo_manutencao,
-      mensagem_manutencao
+      mensagem_manutencao,
+      dados_externos: dadosExternos
     });
 
   } catch (err) {
