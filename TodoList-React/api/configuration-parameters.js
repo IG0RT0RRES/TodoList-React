@@ -15,6 +15,32 @@ export default async function handler(req, res) {
       throw new Error('Variáveis de ambiente SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configuradas na Vercel.');
     }
 
+// --- CHAMADA AO ENDENDPOINT EXTERNO ---
+    let dadosExternos = null;
+    try {
+      const urlEndpointExterno = 'https://tarkhiz-studios-site.vercel.app/api/leaderboard';
+      
+      const respostaExterna = await fetch(urlEndpointExterno, {
+        method: 'GET', // ou 'POST', dependendo de como o outro projeto espera
+        headers: {
+          'Content-Type': 'application/json',
+          // 'Authorization': `Bearer ${process.env.TOKEN_EXTERNO}` // Descomente se precisar de autenticação
+        },
+        // body: JSON.stringify({ ... }) // Use caso seja um POST enviando dados
+      });
+
+      if (!respostaExterna.ok) {
+        throw new Error(`Erro HTTP: ${respostaExterna.status}`);
+      }
+
+      dadosExternos = await respostaExterna.json();
+    } catch (errExterno) {
+      console.warn(`Aviso ao buscar dados do projeto externo: ${errExterno.message}`);
+      // Decida se quer seguir a execução com um valor padrão ou propagar o erro
+    }
+    // ---------------------------------------
+
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // --- ATUALIZAÇÃO AUTOMÁTICA DE LICENÇAS (VENCIMENTO E REATIVAÇÃO) ---
