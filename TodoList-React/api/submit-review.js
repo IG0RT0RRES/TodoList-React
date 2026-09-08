@@ -61,74 +61,90 @@ export default async function handler(req, res) {
 
     let discordEnviado = false;
 
-    // 2. REGRA DO DISCORD: Se a nota for <= 3, dispara o alerta crítico no Discord
-    if (notaUsuario <= 3) {
-      const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
-      
-      if (webhookUrl) {
-        // Montando as estrelas visualmente para o embed
-        const estrelasVisual = '⭐'.repeat(notaUsuario) + '☆'.repeat(5 - notaUsuario);
+    // 2. REGRA DO DISCORD: Envia todas as avaliações com tratamento visual diferenciado por faixa de nota
+    const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
 
-        const payloadDiscord = {
-          content: "⚠️ **Alerta de Feedback Baixo!** Um usuário registrou uma avaliação insatisfatória.",
-          embeds: [
-            {
-              title: "🚨 Nova Avaliação Negativa / Crítica",
-              description: "Um colaborador avaliou o aplicativo com nota baixa. Verifique os detalhes abaixo:",
-              color: 16711680, // Cor vermelha de destaque
-              fields: [
-                {
-                  name: "Avaliação",
-                  value: `${estrelasVisual} (**${notaUsuario}/5**)`,
-                  inline: true
-                },
-                {
-                  name: "Licença / Chave",
-                  value: `\`${chaveFormatada}\``,
-                  inline: true
-                },
-                {
-                  name: "Comentário do Usuário",
-                  value: `> ${comentarioUsuario}`,
-                  inline: false
-                },
-                {
-                  name: "Colaborador",
-                  value: `${nomeUsuario}`,
-                  inline: true
-                },
-                {
-                  name: "Equipe",
-                  value: `${equipeFormatada}`,
-                  inline: true
-                },
-                {
-                  name: "Versão do App",
-                  value: `\`${versaoApp}\``,
-                  inline: true
-                }
-              ],
-              footer: {
-                text: "Baixas Forms – Sistema de Monitoramento de Qualidade"
+    if (webhookUrl) {
+      // Montando as estrelas visualmente para o embed
+      const estrelasVisual = '⭐'.repeat(notaUsuario) + '☆'.repeat(5 - notaUsuario);
+
+      // Definindo o visual com base na nota
+      let tituloDiscord = "";
+      let descricaoDiscord = "";
+      let corDiscord = 0;
+      let conteudoDiscord = "";
+
+      if (notaUsuario <= 3) {
+        conteudoDiscord = "⚠️ **Alerta de Feedback Baixo!** Um usuário registrou uma avaliação insatisfatória.";
+        tituloDiscord = "🚨 Nova Avaliação Negativa / Crítica";
+        descricaoDiscord = "Um colaborador avaliou o aplicativo com nota baixa. Verifique os detalhes abaixo:";
+        corDiscord = 16711680; // Vermelho
+      } else {
+        conteudoDiscord = "🎉 **Nova Avaliação Positiva!** Um usuário registrou uma ótima experiência.";
+        tituloDiscord = "🌟 Nova Avaliação Positiva";
+        descricaoDiscord = "Um colaborador avaliou o aplicativo com nota alta. Confira os detalhes abaixo:";
+        corDiscord = 3066993; // Verde
+      }
+
+      const payloadDiscord = {
+        content: conteudoDiscord,
+        embeds: [
+          {
+            title: tituloDiscord,
+            description: descricaoDiscord,
+            color: corDiscord,
+            fields: [
+              {
+                name: "Avaliação",
+                value: `${estrelasVisual} (**${notaUsuario}/5**)`,
+                inline: true
               },
-              timestamp: dataAvaliacao
-            }
-          ]
-        };
+              {
+                name: "Licença / Chave",
+                value: `\`${chaveFormatada}\``,
+                inline: true
+              },
+              {
+                name: "Comentário do Usuário",
+                value: `> ${comentarioUsuario}`,
+                inline: false
+              },
+              {
+                name: "Colaborador",
+                value: `${nomeUsuario}`,
+                inline: true
+              },
+              {
+                name: "Equipe",
+                value: `${equipeFormatada}`,
+                inline: true
+              },
+              {
+                name: "Versão do App",
+                value: `\`${versaoApp}\``,
+                inline: true
+              }
+            ],
+            footer: {
+              text: "Baixas Forms – Sistema de Monitoramento de Qualidade"
+            },
+            timestamp: dataAvaliacao
+          }
+        ]
+      };
 
-        const responseWebhook = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payloadDiscord),
-        });
+      const responseWebhook = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payloadDiscord),
+      });
 
-        if (responseWebhook.ok) {
-          discordEnviado = true;
-        } else {
-          console.error('Falha ao enviar notificação de feedback para o Discord.');
-        }
+      if (responseWebhook.ok) {
+        discordEnviado = true;
+      } else {
+        console.error('Falha ao enviar notificação de feedback para o Discord.');
       }
     }
 
