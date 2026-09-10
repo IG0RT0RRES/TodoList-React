@@ -27,6 +27,27 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // --- FUNÇÃO AUXILIAR DE LIMPEZA (Retenção de 3 dias) ---
+    async function executarLimpezaAntigos(usuarioEspecifico = null) {
+      // Calcula a data limite (hoje menos 3 dias)
+      const limiteData = new Date();
+      limiteData.setDate(limiteData.getDate() - 3);
+      const limiteDataStr = limiteData.toISOString().split('T')[0];
+
+      let query = supabase
+        .from('historico_execucoes')
+        .delete()
+        .lt('data_iso', limiteDataStr); // Remove tudo que for menor (<) que 3 dias atrás
+
+      // Se passar um usuário, limpa apenas dele (opcional, ou limpa globalmente)
+      if (usuarioEspecifico) {
+        query = query.eq('usuario', usuarioEspecifico);
+      }
+
+      const { error } = await query;
+      if (error) throw error;
+    }
+
     // --- ROTEAMENTO DAS AÇÕES ---
 
     // 1. Salvar Baixa (Sucesso) ou Erro
@@ -39,7 +60,11 @@ export default async function handler(req, res) {
       const { error } = await supabase.from('historico_execucoes').insert(registros);
       if (error) throw error;
 
-      return res.status(200).json({ sucesso: true, mensagem: 'Registros salvos com sucesso.' });
+      // Executa a limpeza de registros com mais de 3 dias em background ou de forma sega
+      const usuarioLogado = registros[0]?.usuario;
+      await executarLimpezaAntigos(usuarioLogado);
+
+      return res.status(200).json({ sucesso: true, mensagem: 'Registros salvos e limpeza executada com sucesso.' });
     }
 
     // 2. Buscar Notas Recentes (filtradas por usuário para evitar duplicidade nos últimos 3 dias)
@@ -86,7 +111,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ sucesso: true, dados: data || [] });
     }
 
-    // 4. Atualizar/Deletar Erros após Reenvio (Utilizando Usuário, Nota e Instalação para precisão)
+    // 4. Atualizar/Deletar Erros após Reenvio
     if (acao === 'atualizar_apos_reenvio') {
       const { dia_proc_iso, data_ref_iso, itens_sucesso, usuario } = payload;
       
@@ -98,7 +123,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ sucesso: true });
       }
 
-      // Deleta individualmente ou em lote os erros específicos do usuário que foram reenviados com sucesso
       for (const item of itens_sucesso) {
         const nota = String(item.nota || '').trim();
         const instalacao = String(item.instalacao || '').trim();
@@ -121,6 +145,13 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({ sucesso: true, mensagem: 'Erros limpos após reenvio.' });
+    }
+
+    // 5. NOVO MÉTODO: Limpar explicitamente registros com mais de 3 dias
+    if (acao === 'limpar_antigos') {
+      const { usuario } = payload || {};
+      await executarLimpezaAntigos(usuario);
+      return res.status(200).json({ sucesso: true, mensagem: 'Registros com mais de 3 dias removidos com sucesso.' });
     }
 
     return res.status(400).json({ error: 'Ação desconhecida.' });
