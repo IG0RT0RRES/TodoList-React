@@ -37,7 +37,7 @@ export default async function handler(req, res) {
       let query = supabase
         .from('historico_execucoes')
         .delete()
-        .lt('data_iso', limiteDataStr); // Remove tudo que for menor (<) que 3 dias atrás
+        .lte('data_iso', limiteDataStr); // Remove tudo que for menor (<) que 3 dias atrás
 
       // Se passar um usuário, limpa apenas dele (opcional, ou limpa globalmente)
       if (usuarioEspecifico) {
