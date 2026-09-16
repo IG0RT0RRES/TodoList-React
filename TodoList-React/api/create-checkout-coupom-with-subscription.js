@@ -346,16 +346,61 @@ export default async function handler(req, res) {
       }
     }
 
-    // 🔍 4. Buscar ou Criar Cliente no Stripe
-    const existingCustomers = await stripe.customers.list({
-      email: email.trim(),
-      limit: 1,
-    });
-
+    // 🔍 4. BUSCAR OU CRIAR CLIENTE NO STRIPE (Usando Busca Avançada por Matrícula e Fallback por E-mail)
     let customerId;
-    if (existingCustomers.data.length > 0) {
-      customerId = existingCustomers.data[0].id;
+
+    try {
+      // Busca avançada pelo metadata de matrícula
+      const searchResults = await stripe.customers.search({
+        query: `metadata['matricula']:'${matriculaLimpa}'`,
+        limit: 1,
+      });
+
+      if (searchResults.data.length > 0) {
+        customerId = searchResults.data[0].id;
+      }
+    } catch (searchError) {
+      console.warn('⚠️ Erro na busca avançada por matrícula no Stripe, tentando fallback por e-mail...', searchError.message);
+    }
+
+    // Fallback de segurança: se não encontrou por matrícula, tenta pelo e-mail
+    if (!customerId) {
+      const existingCustomersByEmail = await stripe.customers.list({
+        email: email.trim(),
+        limit: 1,
+      });
+
+      if (existingCustomersByEmail.data.length > 0) {
+        customerId = existingCustomersByEmail.data[0].id;
+      }
+    }
+
+    // Se o cliente já existe, faz a limpeza de assinaturas com falha e atualiza os dados
+    if (customerId) {
+      const assinaturasAntigas = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'all',
+      });
+
+      for (const sub of assinaturasAntigas.data) {
+        if (sub.status === 'past_due' || sub.status === 'unpaid' || sub.status === 'incomplete') {
+          await stripe.subscriptions.cancel(sub.id);
+          console.log(`🧹 [ANTI-DUPLICIDADE] Assinatura antiga com falha (${sub.id}) cancelada com sucesso.`);
+        }
+      }
+
+      // Atualiza os dados e garante a matrícula nos metadatos
+      await stripe.customers.update(customerId, {
+        email: email.trim(),
+        name: nomeCadastrado,
+        phone: whatsapp.trim(),
+        metadata: {
+          matricula: matriculaLimpa,
+        },
+      });
+
     } else {
+      // Se realmente não existe, cria um novo cliente vinculado à matrícula
       const newCustomer = await stripe.customers.create({
         email: email.trim(),
         name: nomeCadastrado,
