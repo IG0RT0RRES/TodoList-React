@@ -292,7 +292,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 🛑 2. VALIDAÇÃO CRUZADA DE NOME (Matrícula existe, mas o nome não bate)
+    // 🛑 2. VALIDAÇÃO CRUZADA DE NOME
     const nomeCadastradoNormalizado = normalizarTexto(nomeCadastrado);
 
     if (nomeCadastradoNormalizado !== nomeInformadoNormalizado) {
@@ -304,7 +304,7 @@ export default async function handler(req, res) {
 
     console.log(`📱 [CHECKOUT] Matrícula e Nome validados com sucesso: ${matriculaLimpa} - ${nomeCadastrado}`);
 
-    // 🛑 3. VERIFICAÇÃO DE HISTÓRICO NO SUPABASE PARA PERMITIR O TRIAL (Anti-Abuso)
+    // 🛑 3. VERIFICAÇÃO DE HISTÓRICO NO SUPABASE PARA PERMITIR O TRIAL
     let permitirTrial = true;
 
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -346,11 +346,10 @@ export default async function handler(req, res) {
       }
     }
 
-    // 🔍 4. BUSCAR OU CRIAR CLIENTE NO STRIPE (Usando Busca Avançada por Matrícula e Fallback por E-mail)
+    // 🔍 4. BUSCAR OU CRIAR CLIENTE NO STRIPE (Busca Avançada por Matrícula e Fallback por E-mail)
     let customerId;
 
     try {
-      // Busca avançada pelo metadata de matrícula
       const searchResults = await stripe.customers.search({
         query: `metadata['matricula']:'${matriculaLimpa}'`,
         limit: 1,
@@ -363,7 +362,6 @@ export default async function handler(req, res) {
       console.warn('⚠️ Erro na busca avançada por matrícula no Stripe, tentando fallback por e-mail...', searchError.message);
     }
 
-    // Fallback de segurança: se não encontrou por matrícula, tenta pelo e-mail
     if (!customerId) {
       const existingCustomersByEmail = await stripe.customers.list({
         email: email.trim(),
@@ -375,7 +373,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Se o cliente já existe, faz a limpeza de assinaturas com falha e atualiza os dados
+    // 🛑 5. BLOQUEIO DE DUPLICIDADE E LIMPEZA RIGOROSA DE ASSINATURAS VIGENTES OU COM FALHA
     if (customerId) {
       const assinaturasAntigas = await stripe.subscriptions.list({
         customer: customerId,
@@ -383,13 +381,22 @@ export default async function handler(req, res) {
       });
 
       for (const sub of assinaturasAntigas.data) {
+        // Se já existe uma assinatura ATIVA ou em TRIAL, bloqueamos a criação de uma nova e avisamos o usuário
+        if (sub.status === 'active' || sub.status === 'trialing') {
+          console.warn(`⚠️ [BLOQUEIO] O cliente ${customerId} já possui uma assinatura ${sub.status}.`);
+          return res.status(400).json({ 
+            error: 'Você já possui uma assinatura ativa ou em período de testes cadastrada.' 
+          });
+        }
+
+        // Se estiver com erro/atrasada, cancelamos para limpar o caminho
         if (sub.status === 'past_due' || sub.status === 'unpaid' || sub.status === 'incomplete') {
           await stripe.subscriptions.cancel(sub.id);
-          console.log(`🧹 [ANTI-DUPLICIDADE] Assinatura antiga com falha (${sub.id}) cancelada com sucesso.`);
+          console.log(`🧹 [ANTI-DUPLICIDADE] Assinatura com falha (${sub.id}) cancelada.`);
         }
       }
 
-      // Atualiza os dados e garante a matrícula nos metadatos
+      // Atualiza dados cadastrais
       await stripe.customers.update(customerId, {
         email: email.trim(),
         name: nomeCadastrado,
@@ -400,7 +407,6 @@ export default async function handler(req, res) {
       });
 
     } else {
-      // Se realmente não existe, cria um novo cliente vinculado à matrícula
       const newCustomer = await stripe.customers.create({
         email: email.trim(),
         name: nomeCadastrado,
@@ -412,8 +418,8 @@ export default async function handler(req, res) {
       customerId = newCustomer.id;
     }
 
-    // 🔍 5. Buscar o preço atualizado na tabela 'configuracoes_app' do Supabase
-    let precoUnitario = 1500; // Valor padrão de fallback
+    // 🔍 6. Buscar o preço atualizado na tabela 'configuracoes_app' do Supabase
+    let precoUnitario = 1500;
 
     if (supabaseUrl && supabaseKey) {
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -426,13 +432,10 @@ export default async function handler(req, res) {
 
       if (!configError && configData && configData.preco_licenca_centavos) {
         precoUnitario = configData.preco_licenca_centavos;
-        console.log(`💰 [PREÇO DINÂMICO]: Usando valor de R$ ${(precoUnitario / 100).toFixed(2)} do Supabase.`);
-      } else {
-        console.warn('⚠️ Não foi possível buscar o preço na tabela configuracoes_app, usando padrão de R$ 15,00.');
       }
     }
     
-    // 🎟️ 6. Criação da Checkout Session (Modo Assinatura com Trial Condicional)
+    // 🎟️ 7. Criação da Checkout Session
     const subscriptionData = {
       metadata: {
         matricula: matriculaLimpa,
@@ -442,7 +445,6 @@ export default async function handler(req, res) {
       },
     };
 
-    // Adiciona o período de testes de 3 dias apenas se o usuário for elegível
     if (permitirTrial) {
       subscriptionData.trial_period_days = 3;
     }
