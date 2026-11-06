@@ -273,7 +273,6 @@ export default async function handler(req, res) {
       throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
-    // 📥 Captura o parâmetro 'metodo' enviado pelo app Flet ('cartao' ou 'pix')
     const { matricula, nome, whatsapp, email, metodo } = req.body || {};
 
     if (!matricula || !nome || !whatsapp || !email) {
@@ -282,9 +281,13 @@ export default async function handler(req, res) {
 
     const matriculaLimpa = matricula.trim();
     const nomeInformadoNormalizado = normalizarTexto(nome);
-    const tipoPagamento = metodo === 'pix' ? ['pix'] : ['card']; // Define o tipo de pagamento com base na escolha
+    
+    // Identifica se é pix ou cartão
+    const isPix = metodo === 'pix';
+    const paymentMethods = isPix ? ['pix'] : ['card'];
+    const checkoutMode = isPix ? 'payment' : 'subscription';
 
-    // 🛑 1. VALIDAÇÃO DE MATRÍCULA (Não encontrada na base)
+    // 🛑 1. VALIDAÇÃO DE MATRÍCULA
     const nomeCadastrado = FUNCIONARIOS_VALIDOS[matriculaLimpa];
 
     if (!nomeCadastrado) {
@@ -304,9 +307,9 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log(`📱 [CHECKOUT - ${tipoPagamento[0].toUpperCase()}] Matrícula e Nome validados com sucesso: ${matriculaLimpa} - ${nomeCadastrado}`);
+    console.log(`📱 [CHECKOUT - ${isPix ? 'PIX' : 'CARTÃO'}] Validação OK: ${matriculaLimpa} - ${nomeCadastrado}`);
 
-    // 🛑 3. VERIFICAÇÃO DE HISTÓRICO NO SUPABASE PARA PERMITIR O TRIAL
+    // 🛑 3. VERIFICAÇÃO DE HISTÓRICO NO SUPABASE PARA TRIAL (Apenas para Cartão)
     let permitirTrial = true;
 
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -343,7 +346,7 @@ export default async function handler(req, res) {
 
         if (licencaAnterior && licencaAnterior.length > 0) {
           permitirTrial = false;
-          console.log(`🔒 [ANTI-ABUSO] Histórico encontrado para Matrícula ${matriculaLimpa}. O trial de 3 dias será desativado.`);
+          console.log(`🔒 [ANTI-ABUSO] Histórico encontrado. Trial desativado.`);
         }
       }
     }
@@ -361,7 +364,7 @@ export default async function handler(req, res) {
         customerId = searchResults.data[0].id;
       }
     } catch (searchError) {
-      console.warn('⚠️ Erro na busca avançada por matrícula no Stripe, tentando fallback por e-mail...', searchError.message);
+      console.warn('⚠️ Erro na busca por matrícula, tentando e-mail...', searchError.message);
     }
 
     if (!customerId) {
@@ -375,8 +378,8 @@ export default async function handler(req, res) {
       }
     }
 
-    // 🛑 5. BLOQUEIO DE DUPLICIDADE E LIMPEZA DE ASSINATURAS
-    if (customerId) {
+    // 🛑 5. BLOQUEIO DE DUPLICIDADE (Apenas se for assinatura via cartão)
+    if (customerId && !isPix) {
       const assinaturasAntigas = await stripe.subscriptions.list({
         customer: customerId,
         status: 'all',
@@ -384,7 +387,6 @@ export default async function handler(req, res) {
 
       for (const sub of assinaturasAntigas.data) {
         if (sub.status === 'active' || sub.status === 'trialing') {
-          console.warn(`⚠️ [BLOQUEIO] O cliente ${customerId} já possui uma assinatura ${sub.status}.`);
           return res.status(400).json({ 
             error: 'Você já possui uma assinatura ativa ou em período de testes cadastrada.' 
           });
@@ -392,32 +394,28 @@ export default async function handler(req, res) {
 
         if (sub.status === 'past_due' || sub.status === 'unpaid' || sub.status === 'incomplete') {
           await stripe.subscriptions.cancel(sub.id);
-          console.log(`🧹 [ANTI-DUPLICIDADE] Assinatura com falha (${sub.id}) cancelada.`);
         }
       }
+    }
 
+    if (customerId) {
       await stripe.customers.update(customerId, {
         email: email.trim(),
         name: nomeCadastrado,
         phone: whatsapp.trim(),
-        metadata: {
-          matricula: matriculaLimpa,
-        },
+        metadata: { matricula: matriculaLimpa },
       });
-
     } else {
       const newCustomer = await stripe.customers.create({
         email: email.trim(),
         name: nomeCadastrado,
         phone: whatsapp.trim(),
-        metadata: {
-          matricula: matriculaLimpa,
-        },
+        metadata: { matricula: matriculaLimpa },
       });
       customerId = newCustomer.id;
     }
 
-    // 🔍 6. Buscar o preço atualizado na tabela 'configuracoes_app' do Supabase
+    // 🔍 6. Buscar o preço na tabela 'configuracoes_app' do Supabase
     let precoUnitario = 1500;
 
     if (supabaseUrl && supabaseKey) {
@@ -434,8 +432,28 @@ export default async function handler(req, res) {
       }
     }
     
-    // 🎟️ 7. Criação da Checkout Session (Dinamica para Cartão ou Pix)
-    const subscriptionData = {
+    // 🎟️ 7. Montagem da Sessão de Checkout (Dinâmica: Payment para Pix / Subscription para Cartão)
+    const sessionData = {
+      payment_method_types: paymentMethods,
+      customer: customerId,
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: isPix ? 'Licença de Acesso - Gestor de Baixas (PIX)' : 'Licença de Acesso - Gestor de Baixas (Assinatura)',
+              description: `Ativação para a matrícula ${matriculaLimpa} - ${nomeCadastrado}`,
+            },
+            unit_amount: precoUnitario,
+            ...(isPix ? {} : { recurring: { interval: 'month' } }),
+          },
+          quantity: 1,
+        },
+      ],
+      mode: checkoutMode,
+      allow_promotion_codes: false,
+      success_url: `https://wa.me/5521969254192?text=Pagamento%20realizado%20com%20sucesso!%20Matricula:%20${encodeURIComponent(matriculaLimpa)}`,
+      cancel_url: `https://wa.me/5521969254192?text=O%20pagamento%20foi%20cancelado.`,
       metadata: {
         matricula: matriculaLimpa,
         nome: nomeCadastrado,
@@ -444,42 +462,15 @@ export default async function handler(req, res) {
       },
     };
 
-    // O Pix no Stripe não aceita períodos de teste (trial) facilmente dependendo da configuração da conta, mas mantemos condicional se permitido
-    if (permitirTrial && metodo !== 'pix') {
-      subscriptionData.trial_period_days = 3;
+    // Adiciona o período de teste de 3 dias apenas se for assinatura com cartão e permitido
+    if (permitirTrial && !isPix) {
+      sessionData.subscription_data = {
+        trial_period_days: 3,
+        metadata: sessionData.metadata,
+      };
     }
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: tipoPaymentMethods(metodo), // 👈 Dinâmico: ['card'] ou ['pix']
-      customer: customerId,
-      line_items: [
-        {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: 'Licença de Acesso - Gestor de Baixas (Assinatura)',
-              description: `Ativação para a matrícula ${matriculaLimpa} - ${nomeCadastrado}`,
-            },
-            unit_amount: precoUnitario,
-            recurring: {
-              interval: 'month',
-            },
-          },
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      allow_promotion_codes: false,
-      success_url: `https://wa.me/5521969254192?text=Assinatura%20realizada%20com%20sucesso!%20Matricula:%20${encodeURIComponent(matriculaLimpa)}`,
-      cancel_url: `https://wa.me/5521969254192?text=A%20assinatura%20da%20licenca%20foi%20cancelada.`,
-      metadata: {
-        matricula: matriculaLimpa,
-        nome: nomeCadastrado,
-        whatsapp,
-        email,
-      },
-      subscription_data: subscriptionData,
-    });
+    const session = await stripe.checkout.sessions.create(sessionData);
 
     return res.status(200).json({
       checkout_url: session.url
@@ -489,12 +480,4 @@ export default async function handler(req, res) {
     console.error('❌ Erro crítico no Stripe Checkout:', error);
     return res.status(500).json({ error: error.message || 'Erro interno no servidor ao criar o Checkout.' });
   }
-}
-
-// Função auxiliar para definir os métodos de pagamento aceitos pelo Stripe
-function tipoPaymentMethods(metodo) {
-  if (metodo === 'pix') {
-    return ['pix'];
-  }
-  return ['card'];
 }
