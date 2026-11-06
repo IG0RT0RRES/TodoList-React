@@ -273,7 +273,8 @@ export default async function handler(req, res) {
       throw new Error('A chave STRIPE_SECRET_KEY não foi configurada nas variáveis de ambiente.');
     }
 
-    const { matricula, nome, whatsapp, email } = req.body || {};
+    // 📥 Captura o parâmetro 'metodo' enviado pelo app Flet ('cartao' ou 'pix')
+    const { matricula, nome, whatsapp, email, metodo } = req.body || {};
 
     if (!matricula || !nome || !whatsapp || !email) {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
@@ -281,6 +282,7 @@ export default async function handler(req, res) {
 
     const matriculaLimpa = matricula.trim();
     const nomeInformadoNormalizado = normalizarTexto(nome);
+    const tipoPagamento = metodo === 'pix' ? ['pix'] : ['card']; // Define o tipo de pagamento com base na escolha
 
     // 🛑 1. VALIDAÇÃO DE MATRÍCULA (Não encontrada na base)
     const nomeCadastrado = FUNCIONARIOS_VALIDOS[matriculaLimpa];
@@ -302,7 +304,7 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log(`📱 [CHECKOUT] Matrícula e Nome validados com sucesso: ${matriculaLimpa} - ${nomeCadastrado}`);
+    console.log(`📱 [CHECKOUT - ${tipoPagamento[0].toUpperCase()}] Matrícula e Nome validados com sucesso: ${matriculaLimpa} - ${nomeCadastrado}`);
 
     // 🛑 3. VERIFICAÇÃO DE HISTÓRICO NO SUPABASE PARA PERMITIR O TRIAL
     let permitirTrial = true;
@@ -346,7 +348,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 🔍 4. BUSCAR OU CRIAR CLIENTE NO STRIPE (Busca Avançada por Matrícula e Fallback por E-mail)
+    // 🔍 4. BUSCAR OU CRIAR CLIENTE NO STRIPE
     let customerId;
 
     try {
@@ -373,7 +375,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 🛑 5. BLOQUEIO DE DUPLICIDADE E LIMPEZA RIGOROSA DE ASSINATURAS VIGENTES OU COM FALHA
+    // 🛑 5. BLOQUEIO DE DUPLICIDADE E LIMPEZA DE ASSINATURAS
     if (customerId) {
       const assinaturasAntigas = await stripe.subscriptions.list({
         customer: customerId,
@@ -381,7 +383,6 @@ export default async function handler(req, res) {
       });
 
       for (const sub of assinaturasAntigas.data) {
-        // Se já existe uma assinatura ATIVA ou em TRIAL, bloqueamos a criação de uma nova e avisamos o usuário
         if (sub.status === 'active' || sub.status === 'trialing') {
           console.warn(`⚠️ [BLOQUEIO] O cliente ${customerId} já possui uma assinatura ${sub.status}.`);
           return res.status(400).json({ 
@@ -389,14 +390,12 @@ export default async function handler(req, res) {
           });
         }
 
-        // Se estiver com erro/atrasada, cancelamos para limpar o caminho
         if (sub.status === 'past_due' || sub.status === 'unpaid' || sub.status === 'incomplete') {
           await stripe.subscriptions.cancel(sub.id);
           console.log(`🧹 [ANTI-DUPLICIDADE] Assinatura com falha (${sub.id}) cancelada.`);
         }
       }
 
-      // Atualiza dados cadastrais
       await stripe.customers.update(customerId, {
         email: email.trim(),
         name: nomeCadastrado,
@@ -435,7 +434,7 @@ export default async function handler(req, res) {
       }
     }
     
-    // 🎟️ 7. Criação da Checkout Session
+    // 🎟️ 7. Criação da Checkout Session (Dinamica para Cartão ou Pix)
     const subscriptionData = {
       metadata: {
         matricula: matriculaLimpa,
@@ -445,12 +444,13 @@ export default async function handler(req, res) {
       },
     };
 
-    if (permitirTrial) {
+    // O Pix no Stripe não aceita períodos de teste (trial) facilmente dependendo da configuração da conta, mas mantemos condicional se permitido
+    if (permitirTrial && metodo !== 'pix') {
       subscriptionData.trial_period_days = 3;
     }
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      payment_method_types: tipoPaymentMethods(metodo), // 👈 Dinâmico: ['card'] ou ['pix']
       customer: customerId,
       line_items: [
         {
@@ -489,4 +489,12 @@ export default async function handler(req, res) {
     console.error('❌ Erro crítico no Stripe Checkout:', error);
     return res.status(500).json({ error: error.message || 'Erro interno no servidor ao criar o Checkout.' });
   }
+}
+
+// Função auxiliar para definir os métodos de pagamento aceitos pelo Stripe
+function tipoPaymentMethods(metodo) {
+  if (metodo === 'pix') {
+    return ['pix'];
+  }
+  return ['card'];
 }
