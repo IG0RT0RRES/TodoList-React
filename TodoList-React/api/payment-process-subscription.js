@@ -102,12 +102,12 @@ async function enviarEmailJS(customerEmail, nome, licenseKey, dataValidadeFormat
   }
 }
 
-async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao, isDegustacao) {
+async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFormatada, whatsapp, dataAquisicao, dataValidade, isRenovacao, isDegustacao, metodoPagamento = 'Cartão/Assinatura') {
   const webhookUrl = process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
 
-  let titulo = 'Nova Licença Gerada (30 Dias)';
-  let descricao = 'Um novo colaborador foi cadastrado e salvo no Supabase.';
+  let titulo = `Nova Licença Gerada (${metodoPagamento})`;
+  let descricao = 'Um novo pagamento foi aprovado e salvo no Supabase.';
   let cor = 16711680; 
   let conteudoBot = 'Novo pagamento e acesso liberado!';
 
@@ -117,13 +117,13 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
     cor = 3447003; 
     conteudoBot = '🎁 Novo teste grátis ativado!';
   } else if (isRenovacao) {
-    titulo = 'Licença Renovada (+30 Dias)';
-    descricao = 'Um pagamento de renovação foi processado e a validade da chave existente foi estendida.';
+    titulo = `Licença Renovada / Estendida (${metodoPagamento})`;
+    descricao = 'Um pagamento foi processado e a validade da chave foi estendida.';
     cor = 3066993; 
     conteudoBot = 'Renovação de licença concluída!';
   }
 
-  const tipoTexto = isDegustacao ? 'Degustação (3 Dias)' : (isRenovacao ? 'Renovação' : 'Novo Colaborador');
+  const tipoTexto = isDegustacao ? 'Degustação (3 Dias)' : (isRenovacao ? `Renovação (${metodoPagamento})` : `Novo Pagamento (${metodoPagamento})`);
 
   const fields = [
     { name: 'Tipo', value: tipoTexto, inline: true },
@@ -136,7 +136,7 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
   ];
 
   const payload = {
-    username: 'Stripe Pix Bot',
+    username: 'Stripe Bot',
     content: conteudoBot,
     embeds: [{ title: titulo, description: descricao, color: cor, fields: fields }],
   };
@@ -150,6 +150,167 @@ async function enviarWebhookDiscord(licenseKey, customerEmail, nome, matriculaFo
   } catch (error) {
     console.error('Erro ao enviar Webhook Discord:', error);
   }
+}
+
+// ⚙️ FUNÇÃO CENTRALIZADA DE PROCESSAMENTO DE LIBERAÇÃO DE LICENÇA (USADA POR CARTÃO E PIX)
+async function processarLiberacaoLicenca(supabase, dadosCliente) {
+  const { matricula, nome, customerEmail, whatsapp, diasValidade, isDegustacao } = dadosCliente;
+  
+  let tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
+  let colaboradorId = null;
+
+  // 🔍 BUSCA POR MATRÍCULA OU E-MAIL
+  if (matricula) {
+    const { data: colabPorMatricula } = await supabase
+      .from('colaboradores')
+      .select('id, email')
+      .eq('matricula', matricula)
+      .maybeSingle();
+
+    if (colabPorMatricula) {
+      colaboradorId = colabPorMatricula.id;
+
+      if (customerEmail && colabPorMatricula.email !== customerEmail) {
+        console.log(`🔄 Atualizando e-mail do colaborador ${matricula} de "${colabPorMatricula.email}" para "${customerEmail}"`);
+        await supabase
+          .from('colaboradores')
+          .update({ email: customerEmail })
+          .eq('id', colaboradorId);
+      }
+    }
+  }
+
+  if (!colaboradorId && customerEmail) {
+    const { data: colabPorEmail } = await supabase
+      .from('colaboradores')
+      .select('id, matricula')
+      .eq('email', customerEmail)
+      .maybeSingle();
+
+    if (colabPorEmail) {
+      colaboradorId = colabPorEmail.id;
+    }
+  }
+
+  if (!colaboradorId) {
+    const { data: novoColab, error: colabError } = await supabase
+      .from('colaboradores')
+      .insert([{
+        matricula: matricula ? matricula : `TEMP_${Date.now()}`,
+        nome: (nome || 'Cliente').toUpperCase(),
+        email: customerEmail || null,
+      }]).select('id').single();
+
+    if (colabError) {
+      console.error("Erro ao salvar colaborador no Supabase:", colabError);
+      throw new Error("Erro ao salvar colaborador: " + colabError.message);
+    }
+
+    colaboradorId = novoColab.id;
+  }
+
+  const { data: licencasEncontradas } = await supabase
+    .from('licencas')
+    .select('*, colaboradores(matricula, nome)')
+    .eq('colaborador_id', colaboradorId);
+
+  const licencaExistente = licencasEncontradas && licencasEncontradas.length > 0 ? licencasEncontradas[0] : null;
+
+  let chaveUso = '';
+  let isRenovacao = false;
+
+  const agoraStr = new Date();
+  agoraStr.setHours(agoraStr.getHours() - 3); 
+  const agora = new Date(agoraStr);
+
+  let novaDataValidade = new Date(agora);
+
+  if (licencaExistente) {
+    isRenovacao = true;
+    chaveUso = licencaExistente.chave;
+    const dataValidadeAtual = new Date(licencaExistente.data_validade);
+
+    if (dataValidadeAtual.getFullYear() >= 2099) {
+      novaDataValidade = dataValidadeAtual;
+    } else {
+      const eraDegustacao = licencaExistente.tipo === 'degustacao';
+      const dataBase = (dataValidadeAtual > agora && !eraDegustacao) ? dataValidadeAtual : agora;
+
+      novaDataValidade = new Date(dataBase);
+      novaDataValidade.setDate(novaDataValidade.getDate() + diasValidade);
+    }
+
+    const { error: updateError } = await supabase
+      .from('licencas')
+      .update({
+        data_validade: novaDataValidade.toISOString(),
+        status: 'ativa',
+        tipo: tipoLicenca, 
+      })
+      .eq('chave', chaveUso);
+
+    if (updateError) throw updateError;
+  } else {
+    // 🛡️ GARANTIA DE CHAVE ÚNICA NO BANCO
+    let chaveUnica = false;
+    let tentativas = 0;
+
+    while (!chaveUnica && tentativas < 5) {
+      tentativas++;
+      chaveUso = gerarChave();
+
+      const { data: chaveExistente } = await supabase
+        .from('licencas')
+        .select('chave')
+        .eq('chave', chaveUso)
+        .maybeSingle();
+
+      if (!chaveExistente) {
+        chaveUnica = true;
+      }
+    }
+
+    if (!chaveUnica) {
+      throw new Error('Não foi possível gerar uma chave de licença única após várias tentativas.');
+    }
+
+    novaDataValidade.setDate(agora.getDate() + diasValidade);
+
+    const { error: insertLicencaError } = await supabase.from('licencas').insert([{
+      colaborador_id: colaboradorId,
+      chave: chaveUso,
+      data_aquisicao: agora.toISOString(),
+      data_validade: novaDataValidade.toISOString(),
+      status: 'ativa',
+      tipo: tipoLicenca,
+      whatsapp: whatsapp || null,
+      admin: false
+    }]);
+
+    if (insertLicencaError) {
+      console.error("Erro ao inserir nova licença:", insertLicencaError);
+      throw new Error("Erro ao criar licença: " + insertLicencaError.message);
+    }
+  }
+
+  const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
+
+  const statusEmail = isDegustacao ? 'degustacao' : (isRenovacao ? 'renovacao' : 'novo');
+
+  return {
+    customerEmail,
+    nome: nome || 'Cliente',
+    chaveUso,
+    dataValidadeFormatada,
+    statusEmail,
+    colaboradorFormatado,
+    whatsapp,
+    dataAquisicaoFormatada,
+    isRenovacao,
+    isDegustacao
+  };
 }
 
 export default async function handler(req, res) {
@@ -196,13 +357,13 @@ export default async function handler(req, res) {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // 🎯 1. TRATAMENTO PARA ASSINATURA EXPIRADA
+  // 🎯 1. TRATAMENTO PARA ASSINATURA EXPIRADA (Cartão)
   if (eventType === 'customer.subscription.deleted' || eventType === 'customer.subscription.paused') {
     const subscription = event.data.object;
     const metadata = subscription.metadata || {};
     const matricula = metadata.matricula || '';
 
-    console.log(`❌ [ASSINATURA EXPIRADA] Matrícula: ${matricula} (Motivo: ${eventType})`);
+    console.log(`❌ [ASSINATURA EXPIRADA] Matrícula: ${matricula}`);
 
     try {
       if (matricula) {
@@ -222,20 +383,18 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ status: 'success', action: 'subscription_expired_processed' });
     } catch (err) {
-      console.error('❌ Erro ao atualizar status para expirada no Supabase:', err);
+      console.error('❌ Erro ao atualizar status para expirada:', err);
       return res.status(500).json({ status: 'error', detalhe: err.message });
     }
   }
 
-  // 🎯 2. TRATAMENTO PARA FALHAS DE PAGAMENTO EM FATURAS
+  // 🎯 2. TRATAMENTO PARA FALHAS DE PAGAMENTO (Faturas)
   if (eventType === 'invoice.payment_failed') {
     const invoice = event.data.object;
     const metadata = invoice.metadata || invoice.lines?.data?.[0]?.metadata || {};
     const matricula = metadata.matricula || '';
 
     if (invoice.attempt_count >= 3 || invoice.status === 'uncollectible') {
-      console.log(`❌ [PAGAMENTO FALHOU DEFINITIVAMENTE] Matrícula: ${matricula}`);
-
       try {
         if (matricula) {
           const { data: colab } = await supabase
@@ -259,7 +418,67 @@ export default async function handler(req, res) {
     return res.status(200).json({ status: 'received', action: 'payment_failed_logged' });
   }
 
-  // 🎯 3. FATURA BEM-SUCEDIDA (Ativação / Renovação)
+  // 🎯 3. PAGAMENTO DE PIX / SESSÃO CONCLUÍDA COM SUCESSO (checkout.session.completed)
+  if (eventType === 'checkout.session.completed') {
+    const session = event.data.object;
+
+    // Processamos apenas se o pagamento foi concluído (especialmente útil para PIX mode 'payment')
+    if (session.payment_status === 'paid') {
+      const metadata = session.metadata || {};
+      const matricula = (metadata.matricula || '').trim();
+      const nome = metadata.nome || session.customer_details?.name || '';
+      let customerEmail = (session.customer_details?.email || metadata.email || '').trim().toLowerCase();
+      const whatsapp = (metadata.whatsapp || session.customer_details?.phone || '').trim();
+
+      console.log('📦 [PIX/CHECKOUT SUCESSO] Dados recebidos:', { matricula, nome, customerEmail, total: session.amount_total });
+
+      if (!matricula && !customerEmail) {
+        console.warn('⚠️ Webhook Checkout ignorado: Sem dados identificáveis.');
+        return res.status(200).json({ status: 'ignored', reason: 'Missing identification metadata' });
+      }
+
+      try {
+        // Pix dá 30 dias de acesso
+        const dadosProcessados = await processarLiberacaoLicenca(supabase, {
+          matricula,
+          nome,
+          customerEmail,
+          whatsapp,
+          diasValidade: 30,
+          isDegustacao: false
+        });
+
+        await Promise.allSettled([
+          enviarEmailJS(dadosProcessados.customerEmail, dadosProcessados.nome, dadosProcessados.chaveUso, dadosProcessados.dataValidadeFormatada, dadosProcessados.statusEmail),
+          enviarWebhookDiscord(
+            dadosProcessados.chaveUso,
+            dadosProcessados.customerEmail || 'Não informado',
+            dadosProcessados.nome,
+            dadosProcessados.colaboradorFormatado,
+            dadosProcessados.whatsapp,
+            dadosProcessados.dataAquisicaoFormatada,
+            dadosProcessados.dataValidadeFormatada,
+            dadosProcessados.isRenovacao,
+            dadosProcessados.isDegustacao,
+            'PIX (R$ 20,00)'
+          )
+        ]);
+
+        return res.status(200).json({
+          status: 'success',
+          method: 'pix',
+          license: dadosProcessados.chaveUso,
+          valid_until: dadosProcessados.dataValidadeFormatada
+        });
+
+      } catch (ex) {
+        console.error('❌ Erro ao processar webhook do Pix:', ex);
+        return res.status(500).json({ status: 'error', detalhe: ex.message });
+      }
+    }
+  }
+
+  // 🎯 4. FATURA BEM-SUCEDIDA (Assinatura de Cartão)
   if (eventType === 'invoice.payment_succeeded') {
     const invoice = event.data.object;
 
@@ -269,7 +488,7 @@ export default async function handler(req, res) {
         const subObj = await stripe.subscriptions.retrieve(invoice.subscription);
         subscriptionMetadata = subObj.metadata || {};
       } catch (e) {
-        console.warn('⚠️ Não foi possível buscar metadados da assinatura diretamente do Stripe:', e.message);
+        console.warn('⚠️ Não foi possível buscar metadados da assinatura:', e.message);
       }
     }
 
@@ -290,197 +509,51 @@ export default async function handler(req, res) {
       ''
     ).trim();
 
-    console.log('📦 DADOS DA FATURA DO STRIPE RECEBIDOS:', JSON.stringify({
-      customer_email: customerEmail,
-      nome,
-      matricula,
-      total: invoice.total,
-      billing_reason: invoice.billing_reason,
-      metadata
-    }, null, 2));
-
     const isTrialInvoice = invoice.total === 0 && (invoice.billing_reason === 'subscription_create' || invoice.billing_reason === 'subscription_cycle');
     let isDegustacao = isTrialInvoice;
 
     const isDadosInvalidos = !matricula && (!customerEmail || customerEmail === 'cliente desconhecido') && !nome;
     if (isDadosInvalidos) {
-      console.warn('⚠️ Webhook ignorado: Fatura do Stripe sem dados identificáveis do cliente.');
       return res.status(200).json({ status: 'ignored', reason: 'Missing customer identification metadata' });
     }
 
     try {
       let diasValidade = isDegustacao ? 3 : 30;
-      let tipoLicenca = isDegustacao ? 'degustacao' : 'mensal';
 
-      let colaboradorId = null;
-
-      // 🔍 BUSCA POR MATRÍCULA OU E-MAIL
-      if (matricula) {
-        const { data: colabPorMatricula } = await supabase
-          .from('colaboradores')
-          .select('id, email')
-          .eq('matricula', matricula)
-          .maybeSingle();
-
-        if (colabPorMatricula) {
-          colaboradorId = colabPorMatricula.id;
-
-          if (customerEmail && colabPorMatricula.email !== customerEmail) {
-            console.log(`🔄 Atualizando e-mail do colaborador ${matricula} de "${colabPorMatricula.email}" para "${customerEmail}"`);
-            await supabase
-              .from('colaboradores')
-              .update({ email: customerEmail })
-              .eq('id', colaboradorId);
-          }
-        }
-      }
-
-      if (!colaboradorId && customerEmail) {
-        const { data: colabPorEmail } = await supabase
-          .from('colaboradores')
-          .select('id, matricula')
-          .eq('email', customerEmail)
-          .maybeSingle();
-
-        if (colabPorEmail) {
-          colaboradorId = colabPorEmail.id;
-        }
-      }
-
-      if (!colaboradorId) {
-        const { data: novoColab, error: colabError } = await supabase
-          .from('colaboradores')
-          .insert([{
-            matricula: matricula ? matricula : `TEMP_${Date.now()}`,
-            nome: (nome || 'Cliente').toUpperCase(),
-            email: customerEmail || null,
-            equipe: metadata.equipe || null,
-            projeto: metadata.projeto || null,
-            supervisor: metadata.supervisor || null
-          }]).select('id').single();
-
-        if (colabError) {
-          console.error("Erro ao salvar colaborador no Supabase:", colabError);
-          throw new Error("Erro ao salvar colaborador: " + colabError.message);
-        }
-
-        colaboradorId = novoColab.id;
-      }
-
-      const { data: licencasEncontradas } = await supabase
-        .from('licencas')
-        .select('*, colaboradores(matricula, nome)')
-        .eq('colaborador_id', colaboradorId);
-
-      const licencaExistente = licencasEncontradas && licencasEncontradas.length > 0 ? licencasEncontradas[0] : null;
-
-      let chaveUso = '';
-      let isRenovacao = false;
-
-      const agoraStr = new Date();
-      agoraStr.setHours(agoraStr.getHours() - 3); 
-      const agora = new Date(agoraStr);
-
-      let novaDataValidade = new Date(agora);
-
-      if (licencaExistente) {
-        isRenovacao = true;
-        chaveUso = licencaExistente.chave;
-        const dataValidadeAtual = new Date(licencaExistente.data_validade);
-
-        if (dataValidadeAtual.getFullYear() >= 2099) {
-          novaDataValidade = dataValidadeAtual;
-        } else {
-          const eraDegustacao = licencaExistente.tipo === 'degustacao';
-          const dataBase = (dataValidadeAtual > agora && !eraDegustacao) ? dataValidadeAtual : agora;
-
-          novaDataValidade = new Date(dataBase);
-          novaDataValidade.setDate(novaDataValidade.getDate() + diasValidade);
-        }
-
-        const { error: updateError } = await supabase
-          .from('licencas')
-          .update({
-            data_validade: novaDataValidade.toISOString(),
-            status: 'ativa',
-            tipo: tipoLicenca, 
-          })
-          .eq('chave', chaveUso);
-
-        if (updateError) throw updateError;
-      } else {
-        // 🛡️ GARANTIA DE CHAVE ÚNICA NO BANCO
-        let chaveUnica = false;
-        let tentativas = 0;
-
-        while (!chaveUnica && tentativas < 5) {
-          tentativas++;
-          chaveUso = gerarChave();
-
-          const { data: chaveExistente } = await supabase
-            .from('licencas')
-            .select('chave')
-            .eq('chave', chaveUso)
-            .maybeSingle();
-
-          if (!chaveExistente) {
-            chaveUnica = true;
-          }
-        }
-
-        if (!chaveUnica) {
-          throw new Error('Não foi possível gerar uma chave de licença única após várias tentativas.');
-        }
-
-        novaDataValidade.setDate(agora.getDate() + diasValidade);
-
-        const { error: insertLicencaError } = await supabase.from('licencas').insert([{
-          colaborador_id: colaboradorId,
-          chave: chaveUso,
-          data_aquisicao: agora.toISOString(),
-          data_validade: novaDataValidade.toISOString(),
-          status: 'ativa',
-          tipo: tipoLicenca,
-          whatsapp: whatsapp || null,
-          admin: false
-        }]);
-
-        if (insertLicencaError) {
-          console.error("Erro ao inserir nova licença:", insertLicencaError);
-          throw new Error("Erro ao criar licença: " + insertLicencaError.message);
-        }
-      }
-
-      const dataAquisicaoFormatada = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-      const dataValidadeFormatada = novaDataValidade.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-      const colaboradorFormatado = matricula ? `${matricula} - ${(nome || '').toUpperCase()}` : (nome ? nome.toUpperCase() : 'CLIENTE');
-
-      const statusEmail = isDegustacao ? 'degustacao' : (isRenovacao ? 'renovacao' : 'novo');
+      const dadosProcessados = await processarLiberacaoLicenca(supabase, {
+        matricula,
+        nome,
+        customerEmail,
+        whatsapp,
+        diasValidade,
+        isDegustacao
+      });
 
       await Promise.allSettled([
-        enviarEmailJS(customerEmail, nome || 'Cliente', chaveUso, dataValidadeFormatada, statusEmail),
+        enviarEmailJS(dadosProcessados.customerEmail, dadosProcessados.nome, dadosProcessados.chaveUso, dadosProcessados.dataValidadeFormatada, dadosProcessados.statusEmail),
         enviarWebhookDiscord(
-          chaveUso,
-          customerEmail || 'Não informado',
-          nome || 'Cliente',
-          colaboradorFormatado,
-          whatsapp,
-          dataAquisicaoFormatada,
-          dataValidadeFormatada,
-          isRenovacao,
-          isDegustacao
+          dadosProcessados.chaveUso,
+          dadosProcessados.customerEmail || 'Não informado',
+          dadosProcessados.nome,
+          dadosProcessados.colaboradorFormatado,
+          dadosProcessados.whatsapp,
+          dadosProcessados.dataAquisicaoFormatada,
+          dadosProcessados.dataValidadeFormatada,
+          dadosProcessados.isRenovacao,
+          dadosProcessados.isDegustacao,
+          'Cartão de Crédito'
         )
       ]);
 
       return res.status(200).json({
         status: 'success',
-        tipo: statusEmail,
-        license: chaveUso,
-        valid_until: dataValidadeFormatada,
+        tipo: dadosProcessados.statusEmail,
+        license: dadosProcessados.chaveUso,
+        valid_until: dadosProcessados.dataValidadeFormatada,
       });
 
     } catch (ex) {
-      console.error('Erro no processamento do webhook com Supabase:', ex);
+      console.error('❌ Erro no processamento do webhook com Supabase:', ex);
       return res.status(500).json({ status: 'error', detalhe: ex.message });
     }
   }
