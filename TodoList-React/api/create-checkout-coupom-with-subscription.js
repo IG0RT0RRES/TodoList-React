@@ -415,8 +415,8 @@ export default async function handler(req, res) {
       customerId = newCustomer.id;
     }
 
-    // 🔍 6. Buscar o preço na tabela 'configuracoes_app' do Supabase
-    let precoUnitario = 1500;
+    // 🔍 6. Buscar o preço base na tabela 'configuracoes_app' do Supabase (Cartão)
+    let precoUnitarioCartao = 1000; // Padrão 10 reais (1000 centavos) para o cartão
 
     if (supabaseUrl && supabaseKey) {
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -428,11 +428,14 @@ export default async function handler(req, res) {
         .maybeSingle();
 
       if (!configError && configData && configData.preco_licenca_centavos) {
-        precoUnitario = configData.preco_licenca_centavos;
+        precoUnitarioCartao = configData.preco_licenca_centavos;
       }
     }
+
+    // 💰 Define o preço final: se for Pix, cobramos o dobro (ex: R$ 20,00); se for Cartão, o valor normal (ex: R$ 10,00)
+    const unitAmountFinal = isPix ? precoUnitarioCartao * 2 : precoUnitarioCartao;
     
-    // 🎟️ 7. Montagem da Sessão de Checkout (Dinâmica: Payment para Pix / Subscription para Cartão)
+    // 🎟️ 7. Montagem da Sessão de Checkout (Dinâmica: Payment de R$ 20 para Pix / Subscription de R$ 10 para Cartão)
     const sessionData = {
       payment_method_types: paymentMethods,
       customer: customerId,
@@ -441,10 +444,10 @@ export default async function handler(req, res) {
           price_data: {
             currency: 'brl',
             product_data: {
-              name: isPix ? 'Licença de Acesso - Gestor de Baixas (PIX)' : 'Licença de Acesso - Gestor de Baixas (Assinatura)',
+              name: isPix ? 'Licença de Acesso - Gestor de Baixas (PIX - 30 Dias)' : 'Licença de Acesso - Gestor de Baixas (Assinatura Mensal)',
               description: `Ativação para a matrícula ${matriculaLimpa} - ${nomeCadastrado}`,
             },
-            unit_amount: precoUnitario,
+            unit_amount: unitAmountFinal, // 👈 Preço dinâmico (20 reais no Pix, 10 reais no Cartão)
             ...(isPix ? {} : { recurring: { interval: 'month' } }),
           },
           quantity: 1,
